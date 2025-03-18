@@ -238,8 +238,9 @@ if(value <= 50){
           const locationData = csvBase.textContent.split("\n").slice(2).join("\n")
           const data = csvToJSON(locationData);
           
-          const location_file = await fetch("/src/out.csv").then(response => response.text())
-          //const location_file = await fetch("/out.csv").then(response => response.text())
+
+          //const location_file = await fetch("/src/out.csv").then(response => response.text())
+          const location_file = await fetch("/out.csv").then(response => response.text())
           const data2 = csvToJSON(location_file);
           const coordResult = {};
           data2.forEach(obj => {
@@ -280,7 +281,7 @@ const createChartData = (reading) => {
         //d.setUTCMinutes(30);
         d.setUTCSeconds(0);
         // Loop through each hour from 1 to 22
-        chartData[day][d.toISOString()]=reading[day]["DAILY_AQI"]
+        //chartData[day][d.toISOString()]=reading[day]["DAILY_AQI"]
         for (let hour = 1; hour <= 22; hour += 3) {
             d.setUTCHours(hour);
 
