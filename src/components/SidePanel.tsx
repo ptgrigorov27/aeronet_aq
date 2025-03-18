@@ -6,6 +6,24 @@ import styles from "./SidePanel.module.css";
 import L from "leaflet";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
+//import { Bar } from 'react-chartjs-2';
+//import {
+//  Chart as ChartJS,
+//  CategoryScale,
+//  LinearScale,
+//  BarElement,
+//  Title,
+//  Tooltip,
+//  Legend,
+//} from 'chart.js';
+//
+//ChartJS.register(
+//  CategoryScale,
+//  LinearScale,
+//  Title,
+//  Tooltip,
+//  Legend
+//);
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -50,7 +68,7 @@ const SidePanel: React.FC = ( { setExType }   ) => {
   useEffect( () => {
     setTimeout(() => {
       setApiDate(initUTCDate(new Date()));
-      setType("PM")
+      setType("AQI")
     }, 500);
   }, []);
 
@@ -185,30 +203,66 @@ const buildChart = (cData) => {
     return {
         labels: labels,
         datasets: [
-            {
-                label: "PM 2.5",
-                data: pm25Data ,
-                borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.5)'
-            },
+            //{
+            //    label: "PM 2.5",
+            //    data: pm25Data ,
+            //    borderColor: 'setColor',
+            //    backgroundColor: 'rgba(255, 99, 132, 0.5)'
+            //},
             {
                 label: "AQI",
                 data: aqiData ,
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.5)'
             },
-            {
-                label: "DAILY AQI",
-                data: dailyAqiData,
-                borderColor: 'rgb(53, 162, 235)',
-                backgroundColor: 'rgba(53, 162, 235, 0.5)'
-            }
+            //{
+            //    label: "DAILY AQI",
+            //    data: dailyAqiData,
+            //    borderColor: 'rgb(53, 162, 235)',
+            //    backgroundColor: 'rgba(53, 162, 235, 0.5)'
+            //}
         ]
     };
+
+
+    //const d1 = cData[0] ? Array.from(Object.values(cData[0])) : [];
+    //const d2 = cData[1] ? Array.from(Object.values(cData[1])) : [];
+    //const d3 = cData[2] ? Array.from(Object.values(cData[2])) : [];
+    //
+    //if (d1.length === 0 || d2.length === 0 || d3.length === 0) {
+    //    console.error('Error within datadset.');
+    //    return {};  
+    //}
+    //
+    //return {
+    //    labels: labels,
+    //    datasets: [
+    //        {
+    //            label: "PM 2.5",
+    //            data: d1 ,
+    //            borderColor: 'setColor',
+    //            backgroundColor: 'rgba(255, 99, 132, 0.5)'
+    //        },
+    //        {
+    //            label: "AQI",
+    //            data: d2 ,
+    //            borderColor: 'rgb(75, 192, 192)',
+    //            backgroundColor: 'rgba(75, 192, 192, 0.5)'
+    //        },
+    //        {
+    //            label: "PM 2.5",
+    //            data: d3,
+    //            borderColor: 'rgb(75, 192, 192)',
+    //            //borderColor: setColor(d1[0]),
+    //            backgroundColor: 'rgba(53, 162, 235, 0.5)'
+    //        }
+    //    ]
+    //};
 };
 
 const genChartOptions =(name)=>{
   return {
+
   responsive: true,
   plugins: {
     legend: {
@@ -292,9 +346,9 @@ const genChartOptions =(name)=>{
 
 
           <select class="form-select form-select" label="time" onChange={(event) => {handleTypeSelect(event)}}>
-            <option selected value="PM">PM 2.5</option>
+          {/* <option  value="PM">PM 2.5</option> */} 
             <option value="AQI">Air Quality Index</option>
-            <option value="DAILY_AQI">DAILY AQI</option>
+           {/* <option value="DAILY_AQI">DAILY AQI</option> */}  
           </select>
 
 
@@ -313,6 +367,7 @@ const genChartOptions =(name)=>{
         <Modal.Body>
         {
           ready &&
+          //<Bar option={chartOptions} data={chartD} />
           <Line option={chartOptions} data={chartD} />
         } 
         </Modal.Body>

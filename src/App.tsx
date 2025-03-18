@@ -9,7 +9,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import "./App.css";
 
 function App() {
-  const [exType, setExType] = useState<string>("PM") 
+  const [exType, setExType] = useState<string>("AQI") 
   return (
   <LocalizationProvider dateAdapter={AdapterDayjs}>
     <SiteProvider>

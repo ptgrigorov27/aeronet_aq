@@ -238,8 +238,8 @@ if(value <= 50){
           const locationData = csvBase.textContent.split("\n").slice(2).join("\n")
           const data = csvToJSON(locationData);
           
-          //const location_file = await fetch("/src/out.csv").then(response => response.text())
-          const location_file = await fetch("/out.csv").then(response => response.text())
+          const location_file = await fetch("/src/out.csv").then(response => response.text())
+          //const location_file = await fetch("/out.csv").then(response => response.text())
           const data2 = csvToJSON(location_file);
           const coordResult = {};
           data2.forEach(obj => {
@@ -277,9 +277,10 @@ const createChartData = (reading) => {
     const d = new Date(apiDate);
 
     for (let day = 0; day < 3; day++) {
-        d.setUTCMinutes(30);
+        //d.setUTCMinutes(30);
         d.setUTCSeconds(0);
         // Loop through each hour from 1 to 22
+        chartData[day][d.toISOString()]=reading[day]["DAILY_AQI"]
         for (let hour = 1; hour <= 22; hour += 3) {
             d.setUTCHours(hour);
 
@@ -305,6 +306,7 @@ reading[day][rKeyDAQI];
         d.setUTCDate(d.getUTCDate() + 1);  
 
     }
+    console.log(chartData)
     return chartData;
 };
 
@@ -352,7 +354,7 @@ reading[day][rKeyDAQI];
                 `  <div style="background-color: ${markerColor}; color: ${setTextColor(value)}; border-radius:8px; padding: 10px; margin: 0;"> 
                     <b>Site Name:</b> ${siteName}<br>
                     <b>Station:</b> ${markerReference["Station"]}<br>
-                    <span style="font-size: 20px;"><b>${marker.options.type}:</b> ${type.includes("AQI") ? `${marker.options.value} µg/m<sup>3</sup>` : `${marker.options.value.toFixed(4)}  µg/m<sup>-3</sup>`}</span><br>
+                    <span style="font-size: 20px;"><b>${marker.options.type}:</b> ${type.includes("AQI") ? `${marker.options.value}` : `${marker.options.value.toFixed(4)}  µgm<sup>-3</sup>`}</span><br>
                   <b>${setText(value)}</b><br>
                  </div>`, customOpts)
               .openPopup();
