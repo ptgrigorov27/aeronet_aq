@@ -203,12 +203,12 @@ const buildChart = (cData) => {
     return {
         labels: labels,
         datasets: [
-            {
-                label: "PM 2.5",
-                data: pm25Data ,
-                borderColor: 'setColor',
-                backgroundColor: 'rgba(255, 99, 132, 0.5)'
-            },
+            //{
+            //    label: "PM 2.5",
+            //    data: pm25Data ,
+            //    borderColor: 'setColor',
+            //    backgroundColor: 'rgba(255, 99, 132, 0.5)'
+            //},
             {
                 label: "AQI",
                 data: aqiData ,
