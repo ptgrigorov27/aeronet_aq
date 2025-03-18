@@ -1,0 +1,28 @@
+
+
+
+/*mine*/
+
+svg.leaflet-attribution-flag {
+  display: none !important;
+}
+
+.leaflet-container.leaflet-touch.leaflet-fade-anim.leaflet-grab.leaflet-touch-drag.leaflet-touch-zoom {
+  background: linear-gradient(90deg, black, black);
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: rgba(0, 0, 0, 0.5) !important; 
+  border-radius: 8px;
+  padding: 0px; 
+  margin: 0;
+  width: auto;
+}
+
+.leaflet-popup-tip {
+}
+
+.leaflet-popup-content {
+  color: white !important;
+  margin:0;
+}
