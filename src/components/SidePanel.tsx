@@ -203,24 +203,24 @@ const buildChart = (cData) => {
     return {
         labels: labels,
         datasets: [
-            //{
-            //    label: "PM 2.5",
-            //    data: pm25Data ,
-            //    borderColor: 'setColor',
-            //    backgroundColor: 'rgba(255, 99, 132, 0.5)'
-            //},
+            {
+                label: "PM 2.5",
+                data: pm25Data ,
+                borderColor: 'setColor',
+                backgroundColor: 'rgba(255, 99, 132, 0.5)'
+            },
             {
                 label: "AQI",
                 data: aqiData ,
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.5)'
             },
-            //{
-            //    label: "DAILY AQI",
-            //    data: dailyAqiData,
-            //    borderColor: 'rgb(53, 162, 235)',
-            //    backgroundColor: 'rgba(53, 162, 235, 0.5)'
-            //}
+            {
+                label: "DAILY AQI",
+                data: dailyAqiData,
+                borderColor: 'rgb(53, 162, 235)',
+                backgroundColor: 'rgba(53, 162, 235, 0.5)'
+            }
         ]
     };
 
