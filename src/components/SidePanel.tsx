@@ -123,7 +123,9 @@ const [cloudMapLayerMem, setCloudMapLayer] = useState(null);
   
   const getMapDate = () => {
     const d = new Date(apiDate)
-    return  `${d.getFullYear()}-${String(d.getUTCMonth()).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}` 
+    console.log(d)
+    console.log(`${d.getFullYear()}-${String(d.getUTCMonth()+1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`)
+    return  `${d.getFullYear()}-${String(d.getUTCMonth()+1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}` 
   }
 
 
