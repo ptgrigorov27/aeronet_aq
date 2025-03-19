@@ -45,7 +45,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   useEffect(()=>{
     clearMarkers();
     fetchMarkers(type, time);
-    console.log(type);
+    //console.log(type);
     
   },[readings, type, time])
 
@@ -218,7 +218,7 @@ if(value <= 50){
         const d = new Date(apiDate);
         const [ year, month, date] = [d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate()] 
         
-        console.log(year, month, date)
+        //console.log(year, month, date)
         
 
         const response = await axios.get(`https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`);
@@ -281,33 +281,33 @@ const createChartData = (reading) => {
         //d.setUTCMinutes(30);
         d.setUTCSeconds(0);
         // Loop through each hour from 1 to 22
-        //chartData[day][d.toISOString()]=reading[day]["DAILY_AQI"]
-        for (let hour = 1; hour <= 22; hour += 3) {
-            d.setUTCHours(hour);
-
-            const rKeyPM = 
-Object.keys(reading[day]).find(x => x.includes("PM") && 
-x.includes(`(${hour}30)`));
-            const rKeyAQI = 
-Object.keys(reading[day]).find(x => x.includes("AQI") && 
-x.includes(`(${hour}30)`));
-            const rKeyDAQI = 
-Object.keys(reading[day]).find(x => x.includes("DAILY_AQI") 
-);
-
-            chartData[0][d.toISOString()] = 
-reading[day][rKeyPM];
-            chartData[1][d.toISOString()] = 
-reading[day][rKeyAQI];
-            chartData[2][d.toISOString()] = 
-reading[day][rKeyDAQI];
-
-        }
-
+        chartData[day][d.toISOString()]=reading[day]["DAILY_AQI"]
+//        for (let hour = 1; hour <= 22; hour += 3) {
+//            d.setUTCHours(hour);
+//
+//            const rKeyPM = 
+//Object.keys(reading[day]).find(x => x.includes("PM") && 
+//x.includes(`(${hour}30)`));
+//            const rKeyAQI = 
+//Object.keys(reading[day]).find(x => x.includes("AQI") && 
+//x.includes(`(${hour}30)`));
+//            const rKeyDAQI = 
+//Object.keys(reading[day]).find(x => x.includes("DAILY_AQI") 
+//);
+//
+//            chartData[0][d.toISOString()] = 
+//reading[day][rKeyPM];
+//            chartData[1][d.toISOString()] = 
+//reading[day][rKeyAQI];
+//            chartData[2][d.toISOString()] = 
+//reading[day][rKeyDAQI];
+//
+//        }
+//
         d.setUTCDate(d.getUTCDate() + 1);  
 
     }
-    console.log(chartData)
+    //console.log(chartData)
     return chartData;
 };
 
@@ -362,7 +362,7 @@ reading[day][rKeyDAQI];
           });
           
           marker.on("click", () => {
-            setClickedSite(siteName) 
+            setClickedSite(`${siteName} | 3-Day Daily Forecast`) 
             const chartData = createChartData(readings[site]) 
             setChartData(chartData);
             setTimeout(() => {
