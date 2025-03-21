@@ -305,8 +305,8 @@ if(value <= 50){
           const data = csvToJSON(locationData);
           
 
-          const location_file = await fetch("/src/out.csv").then(response => response.text())
-          //const location_file = await fetch("/new_web/aeronet_aq/out.csv").then(response => response.text())
+          //const location_file = await fetch("/src/out.csv").then(response => response.text())
+          const location_file = await fetch("/new_web/aeronet_aq/out.csv").then(response => response.text())
           const data2 = csvToJSON(location_file);
           const coordResult = {};
           data2.forEach(obj => {
