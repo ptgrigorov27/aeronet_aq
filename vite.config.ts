@@ -5,7 +5,4 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   base: "/new_web/aeronet_aq",
-  build: {
-    emptyOutDir: true,
-  },
 });

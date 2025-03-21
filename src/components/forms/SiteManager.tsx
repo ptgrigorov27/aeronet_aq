@@ -48,7 +48,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     clearMarkers();
     fetchMarkers(type, time);
     //console.log(type);
-    
   },[readings, type, time])
 
   useEffect(() => {
@@ -414,6 +413,8 @@ const createChartData = (reading) => {
   const fetchMarkers = (type: string, time: string) => {
     let rKey;
     if(readings){
+      console.log(readings);
+      try { 
       for ( const site in coordArr)
       {
         if(Object.keys(readings).includes(site)){
@@ -485,8 +486,15 @@ const createChartData = (reading) => {
           });
         }
       } 
+    }catch(e){
+    console.log(e);
+    console.log(readings);
+          setResponse("Failed: Error occurred refer to console.")
+
     }
   }
+  }
+  
 };
 export default SiteManager;
  
