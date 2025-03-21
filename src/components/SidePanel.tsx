@@ -544,7 +544,8 @@ const genChartOptions =(name)=>{
                     value={dayjs(apiDate)}
                     onChange={(date) => { setApiDate(date.$d) }}
                     showTimeSelect
-                  />    <DatePicker
+                  />
+                  <DatePicker
                     value={dayjs(fromInit)}
                     showTimeSelect
                     disabled
