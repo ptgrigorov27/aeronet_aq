@@ -55,6 +55,7 @@ const SidePanel: React.FC = ( { setExType }   ) => {
   const [isCloudLayerVisible, setIsCloudLayerVisible] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(map?.getZoom() || 2);
   const [markerSize, setMarkerSize] = useState<number>((zoomLevel + 2) * (Math.E - 1));
+  const [initDate, setInitDate] = useState<string>("");
 
   const [apiDate, setApiDate] = useState<string>("");
   const [refreshMarkers, setRefreshMarkers] = useState<boolean>(false);
@@ -544,8 +545,7 @@ const genChartOptions =(name)=>{
                     value={dayjs(apiDate)}
                     onChange={(date) => { setApiDate(date.$d) }}
                     showTimeSelect
-                  />
-                  <DatePicker
+                  />    <DatePicker
                     value={dayjs(fromInit)}
                     showTimeSelect
                     disabled
