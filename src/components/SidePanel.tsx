@@ -26,6 +26,8 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+ChartJS.register(ChartDataLabels);
 //import {
 //  Chart as ChartJS,
 //  CategoryScale,
@@ -53,6 +55,7 @@ const SidePanel: React.FC = ( { setExType }   ) => {
   const [isCloudLayerVisible, setIsCloudLayerVisible] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(map?.getZoom() || 2);
   const [markerSize, setMarkerSize] = useState<number>((zoomLevel + 2) * (Math.E - 1));
+
   const [apiDate, setApiDate] = useState<string>("");
   const [refreshMarkers, setRefreshMarkers] = useState<boolean>(false);
   const [typeChanged] = useState<boolean>(false);
@@ -68,6 +71,7 @@ const SidePanel: React.FC = ( { setExType }   ) => {
 const [cloudMapLayerMem, setCloudMapLayer] = useState(null);  
   const [ready, setReady] = useState<boolean>(false)
   //const maxDate = useState<string>(initUTCDate())
+  const [fromInit, setFromInit] = useState<number>(0) 
 
   // On site load
   useEffect( () => {
@@ -123,8 +127,6 @@ const [cloudMapLayerMem, setCloudMapLayer] = useState(null);
   
   const getMapDate = () => {
     const d = new Date(apiDate)
-    console.log(d)
-    console.log(`${d.getFullYear()}-${String(d.getUTCMonth()+1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`)
     return  `${d.getFullYear()}-${String(d.getUTCMonth()+1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}` 
   }
 
@@ -226,6 +228,7 @@ function initUTCDate(inDate = null) {
 
     ////for (const rDate of Object.keys(readings[0])) { // uncomment if reverting back to line graph with all values [3 d] array 
     for (const date in readings) {
+      
        const d = new Date(Object.keys(readings[date])[0]);
     
 
@@ -319,7 +322,38 @@ function initUTCDate(inDate = null) {
     return c;
 
   };
-
+const setTextColor = (value: number) => {
+        
+    if (type.includes("PM")){    
+      if(value <= 12){
+          return "white"
+        } else if (value <= 35){
+          return "black"
+        } else if (value <= 55){
+          return "black"
+        } else if (value <= 150){
+          return "white"
+        } else if (value <= 250){
+          return "white"
+        }else{
+          return "white"
+        }
+    }else{
+        if(value <= 50){
+          return "white"
+        } else if (value <= 100){
+          return "black"
+        } else if (value <= 150){
+          return "black"
+        } else if (value <= 200){
+          return "white"
+        } else if (value <= 300){
+          return "white"
+        }else{
+          return "white"
+        }
+    }
+  };
 
    const setText = (value: number) => {
         
@@ -409,36 +443,58 @@ const buildChart = (cData) => {
                 data: [d1,null,null] ,
                 skipNull: true,
                 borderColor: setColor(d1, "outter"),
-                backgroundColor: setColor(d1, "inner") 
+                backgroundColor: setColor(d1, "outter"), 
+                datalabels: {
+                  color: setTextColor(d1),
+                },
+            
             },
             {
                 label: `${setText(d2)} (${d2})`,
                 data: [null,d2,null],
                 skipNull: true,
                 borderColor: setColor(d2, "outter"),
-                backgroundColor: setColor(d2, "inner") 
+                backgroundColor: setColor(d2, "outter"), 
+                            datalabels: {
+                  color: setTextColor(d2),
+                },
             },
             {
                 label: `${setText(d3)} (${d3})`,
                 data: [null,null,d3] ,
                 skipNull: true, 
                 borderColor: setColor(d3, "outter"),
-                backgroundColor: setColor(d3, "inner") 
+                backgroundColor: setColor(d3, "outter"), 
+                            datalabels: {
+                  color: setTextColor(d3),
+                },
             }
         ]
     };
-};
+};   
 
+const setMaxDate = ( date ) => {
+  const d = new Date(date) 
+  d.setUTCDate(d.getUTCDate() + 2) 
+  return d
+}
+ 
 const genChartOptions =(name)=>{
   return {
 
   responsive: true,
   plugins: {
     legend: {
-      position: 'top' as const,
+            display: false
+    
+    },
+    datalabels: {
+    font: {
+      size: "80%",
+    },
     },
     title: {
-      display: true,
+      display: false,
       text: name ? name : "",
     },
   },
@@ -473,7 +529,7 @@ const genChartOptions =(name)=>{
               //variant="normal"
               onClick={toggleCloudLayer}
               >
-              {isCloudLayerVisible ? 'Disable Cloud Layer ' : 'Enable Cloud Layer'}
+              {isCloudLayerVisible ? 'Disable Satellite Layer ' : 'Enable Satellite Layer'}
             </Button>
           </div>
 
@@ -484,10 +540,14 @@ const genChartOptions =(name)=>{
                apiDate && (
                 <>
                   <DatePicker
-                    maxDate={dayjs(initUTCDate())}
+                    maxDate={dayjs( setMaxDate(initUTCDate()))}
                     value={dayjs(apiDate)}
                     onChange={(date) => { setApiDate(date.$d) }}
                     showTimeSelect
+                  />    <DatePicker
+                    value={dayjs(fromInit)}
+                    showTimeSelect
+                    disabled
                   />
                   {
                   type !== "DAILY_AQI" &&
@@ -526,7 +586,7 @@ const genChartOptions =(name)=>{
           }
         </div>
         </Card.Body>
-      <SiteManager apiDate={apiDate} setChartData={setChartData} setClickedSite={setClickedSite} setShowChart={setShowChart} setResponse={setResponse} type={type} time={time} typeChanged={typeChanged}  zoom={zoom} markerSize={markerSize} refreshMarkers={refreshMarkers}/> 
+      <SiteManager apiDate={apiDate} exInit={setFromInit} setChartData={setChartData} setClickedSite={setClickedSite} setShowChart={setShowChart} setResponse={setResponse} type={type} time={time} typeChanged={typeChanged}  zoom={zoom} markerSize={markerSize} refreshMarkers={refreshMarkers}/> 
       </Card>
       <Modal show={showChart} onHide={() => handleChartDone()} className={"modal-lg"} centered>
         <Modal.Header closeButton>
@@ -536,7 +596,7 @@ const genChartOptions =(name)=>{
         {
           ready &&
           //<Line option={chartOptions} data={chartD} />
-          <Bar option={chartOptions} data={chartD} />
+          <Bar options={chartOptions} data={chartD} />
         } 
         </Modal.Body>
         <Modal.Footer>
