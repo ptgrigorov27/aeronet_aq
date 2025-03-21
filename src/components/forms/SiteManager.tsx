@@ -226,6 +226,7 @@ if(value <= 50){
         
         d.setUTCDate(d.getUTCDate() - 1)
         const [ year, month, date] = [d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate()] 
+        console.log(date, failed++);
         
         const response = await axios.get(`https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`);
 
@@ -244,8 +245,8 @@ if(value <= 50){
           const data = csvToJSON(locationData);
           
 
-          //const location_file = await fetch("/src/out.csv").then(response => response.text())
-          const location_file = await fetch("/new_web/aeronet_aq/out.csv").then(response => response.text())
+          const location_file = await fetch("/src/out.csv").then(response => response.text())
+          //const location_file = await fetch("/new_web/aeronet_aq/out.csv").then(response => response.text())
           const data2 = csvToJSON(location_file);
           const coordResult = {};
           data2.forEach(obj => {
