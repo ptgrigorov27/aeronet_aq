@@ -429,7 +429,7 @@ const createChartData = (reading) => {
           const markerReference = readings[site][fromInit];
           const markerType = { PM:"PM 2.5", DAILY_AQI:"DAILY AQI", AQI: "AQI" }
           const siteName:string = site.replace("__","_").split("_").map( words =>{ return words.charAt(0).toUpperCase()+words.slice(1)}).join(" ");
-          const pmKey = Object.keys(readings[site][fromInit]).find(x => (x.includes(`PM`)));
+          const pmKey = Object.keys(readings[site][fromInit]).find(x => (x.includes(`PM`)  && x.includes(`${time}`)));
           const pm = readings[site][fromInit][pmKey]
           const marker = L.circleMarker([coordArr[site].Latitude, coordArr[site].Longitude], {
             fillColor: markerColor,
