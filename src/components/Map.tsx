@@ -6,14 +6,13 @@ import { Container } from "react-bootstrap";
 import styles from "./Map.module.css";
 import { useMapContext } from "./MapContext";
 //import * as d3 from "d3";
-import ColorLegend from './colorScale';
+import ColorLegend from "./colorScale";
 import CustomControls from "./CustomControls";
 
 interface MapComponentProps {
   center: [number, number];
   zoom: number;
 }
-
 
 const CustomMapLayer: React.FC = () => {
   const map = useMap();
@@ -58,28 +57,29 @@ const CustomMapLayer: React.FC = () => {
       },
     );
 
+    const wmsLayer = L.tileLayer.wms(
+      "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
+      {
+        layers: ["VIIRS_NOAA20_CorrectedReflectance_TrueColor", "Coastlines"],
+        format: "image/png",
+        crs: L.CRS.EPSG4326,
+        opacity: 1.0,
+        tileSize: 256,
+        transparent: true,
+        attribution: "",
+        noWrap: false,
+        errorTileTimeout: 5000,
+      },
+    );
 
-    const wmsLayer = L.tileLayer.wms("https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi", {
-            layers:["VIIRS_NOAA20_CorrectedReflectance_TrueColor","Coastlines"],
-            format: 'image/png',
-            crs: L.CRS.EPSG4326,
-            opacity: 1.0,
-            tileSize: 256,
-            transparent: true,
-            attribution: "",
-            noWrap:false,
-            errorTileTimeout: 5000,
-    });
-    
     const reg = L.layerGroup([basemapLayer, references]);
     const gibs = L.layerGroup([wmsLayer, references]);
-    var baseMaps = {    
+    var baseMaps = {
       "Open Street Map": reg,
-      "SNPP VIIRS True Color Image" : gibs,
+      "SNPP VIIRS True Color Image": gibs,
     };
-    
-    //L.control.layers(baseMaps).addTo(map)
 
+    //L.control.layers(baseMaps).addTo(map)
 
     map.addLayer(reg);
     //map.addLayer(references);
@@ -89,16 +89,16 @@ const CustomMapLayer: React.FC = () => {
     map.setMinZoom(3);
     map.setMaxZoom(19);
     map.setMaxBounds([
-      [-90, -180], 
-      [90, 180]    
+      [-90, -180],
+      [90, 180],
     ]);
-    map.setMaxBounds(map.getBounds().pad(Math.sqrt(2)/2))
+    map.setMaxBounds(map.getBounds().pad(Math.sqrt(2) / 2));
 
     setMap(map);
 
     return () => {
       map.removeLayer(basemapLayer);
-       map.removeLayer(references);
+      map.removeLayer(references);
       removeAllControls();
     };
   }, [map, setMap]);
@@ -116,13 +116,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ center, zoom, type }) => {
         attributionControl={false}
         style={{ height: "100%", width: "100%" }}
       >
-
-        <CustomControls /> 
+        <CustomControls />
         <CustomMapLayer />
-        <ColorLegend type={type}/>
+        <ColorLegend type={type} />
       </MapContainer>
     </Container>
   );
 };
 export default MapComponent;
-

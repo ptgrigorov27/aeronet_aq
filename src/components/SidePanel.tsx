@@ -4,8 +4,14 @@ import { useMapContext } from "./MapContext";
 import SiteManager from "./forms/SiteManager";
 import styles from "./SidePanel.module.css";
 import L from "leaflet";
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
+import axios from "axios";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import Box from "@mui/material/Box";
+import InputLabel from "@mui/material/InputLabel";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import Select, { SelectChangeEvent } from "@mui/material/Select";
+import dayjs from "dayjs";
 import * as d3 from "d3";
 import {
   Chart as ChartJS,
@@ -15,8 +21,8 @@ import {
   Title,
   Tooltip,
   Legend,
-} from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+} from "chart.js";
+import { Bar } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
@@ -24,9 +30,9 @@ ChartJS.register(
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
 );
-import ChartDataLabels from 'chartjs-plugin-datalabels';
+import ChartDataLabels from "chartjs-plugin-datalabels";
 ChartJS.register(ChartDataLabels);
 //import {
 //  Chart as ChartJS,
@@ -50,50 +56,53 @@ ChartJS.register(ChartDataLabels);
 //  Legend
 //);
 
-const SidePanel: React.FC = ( { setExType }   ) => {
+const SidePanel: React.FC = ({ setExType }) => {
   const { map } = useMapContext();
+
   const [isCloudLayerVisible, setIsCloudLayerVisible] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(map?.getZoom() || 2);
-  const [markerSize, setMarkerSize] = useState<number>((zoomLevel + 2) * (Math.E - 1));
+  const [markerSize, setMarkerSize] = useState<number>(
+    (zoomLevel + 2) * (Math.E - 1),
+  );
   const [initDate, setInitDate] = useState<string>("");
-
+  const [innerDate, setInnerDate] = useState<number>(0);
   const [apiDate, setApiDate] = useState<string>("");
   const [refreshMarkers, setRefreshMarkers] = useState<boolean>(false);
   const [typeChanged] = useState<boolean>(false);
-  const [type, setType] = useState<string>("")
-  const [zoom] = useState<number>(3)
-  const [response, setResponse] = useState<string>("")
-  const [time,setTime] = useState<string>("")
-  const [clickedSite, setClickedSite] = useState<string>("")
-  const [chartData, setChartData] = useState([])
-  const [showChart, setShowChart] = useState<boolean>(false)
-  const [chartD, setChartD] = useState({})
-  const [chartOptions, setChartOptions] = useState({})
-const [cloudMapLayerMem, setCloudMapLayer] = useState(null);  
-  const [ready, setReady] = useState<boolean>(false)
+  const [type, setType] = useState<string>("");
+  const [zoom] = useState<number>(3);
+  const [response, setResponse] = useState<string>("");
+  const [time, setTime] = useState<string>("");
+  const [clickedSite, setClickedSite] = useState<string>("");
+  const [chartData, setChartData] = useState([]);
+  const [showChart, setShowChart] = useState<boolean>(false);
+  const [chartD, setChartD] = useState({});
+  const [chartOptions, setChartOptions] = useState({});
+  const [cloudMapLayerMem, setCloudMapLayer] = useState(null);
+  const [ready, setReady] = useState<boolean>(false);
   //const maxDate = useState<string>(initUTCDate())
-  const [fromInit, setFromInit] = useState<number>(0) 
+  const [fromInit, setFromInit] = useState<number>(0);
+  const [selectArr, setSelectArr] = useState<string[]>(["", "", ""]);
 
   // On site load
-  useEffect( () => {
+  useEffect(() => {
     setTimeout(() => {
       setApiDate(initUTCDate());
-      setType("AQI")
+      setType("AQI");
     }, 500);
   }, []);
 
   //NOTE: This updates the map on these values change
   useEffect(() => {
     setTimeout(() => {
-    if(isCloudLayerVisible)
-    {
-    map.removeLayer(cloudMapLayerMem);
-    const newCloudLayer = cloudLayer();  
-    setCloudMapLayer(newCloudLayer);  
-    map.addLayer(newCloudLayer);  
-    }
+      if (isCloudLayerVisible) {
+        map.removeLayer(cloudMapLayerMem);
+        const newCloudLayer = cloudLayer();
+        setCloudMapLayer(newCloudLayer);
+        map.addLayer(newCloudLayer);
+      }
     }, 500);
-  }, [apiDate]);
+  }, [apiDate, innerDate]);
 
   useEffect(() => {
     setMarkerSize((zoomLevel + 2) * (Math.E - 1));
@@ -113,90 +122,146 @@ const [cloudMapLayerMem, setCloudMapLayer] = useState(null);
   }, [map, zoomLevel]);
 
   useEffect(() => {
-    if(showChart && chartData)
-      {
-        setTimeout(() => {
-          
-    setChartD(buildChart(chartData));
-    setChartOptions(genChartOptions(clickedSite));
-        
+    if (showChart && chartData) {
+      setTimeout(() => {
+        setChartD(buildChart(chartData));
+        setChartOptions(genChartOptions(clickedSite));
+
         setReady(true);
-        }, 500);
-
-      }   
-  }, [showChart])
-  
-  const getMapDate = () => {
-    const d = new Date(apiDate)
-    return  `${d.getFullYear()}-${String(d.getUTCMonth()+1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}` 
-  }
-
-
-const cloudLayer = () => {
-  const wmsLayer = L.tileLayer.wms("https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi", {
-    layers: ["VIIRS_NOAA20_CorrectedReflectance_TrueColor"],
-    format: 'image/png',
-    crs: L.CRS.EPSG4326,
-    opacity: 1.0,
-    time: getMapDate(),
-    tileSize: 256,
-    transparent: true,
-    attribution: "",
-    noWrap: true,
-    errorTileTimeout: 5000,
-  });
-
-  const labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-    zIndex: 1000,
-    noWrap: true,
-    tileSize: 256,
-    errorTileUrl: '',
-    errorTileTimeout: 5000,
-  });
-
-  return L.layerGroup([wmsLayer, labelsLayer]);
-};
-
-
-const toggleCloudLayer = () => {
-  if (cloudMapLayerMem) {
-    map.removeLayer(cloudMapLayerMem);
-    setCloudMapLayer(null);  
-  } else {
-    const newCloudLayer = cloudLayer();  
-    setCloudMapLayer(newCloudLayer);  
-    map.addLayer(newCloudLayer);  
-  }
-
-  setIsCloudLayerVisible(prevState => !prevState);
-};
-
-  
-function initUTCDate(inDate = null) {
-  let d;
-
-  if (inDate === null) {
-    d = new Date(); 
-    const curT = d.getUTCHours();  
-    //  given jun's api updates at 12 est.
-    if (curT < 16) {
-      d.setUTCDate(d.getUTCDate() - 1);
+      }, 500);
     }
-  } else {
-    d = new Date(inDate);
-  }
-  d.setUTCMinutes(0);
+  }, [showChart]);
 
-  return d;
-}
- 
+  const getMapDate = () => {
+    //console.log(apiDate);
+    const d = new Date(fromInit);
+    d.setDate(d.getDate() + innerDate);
+    return `${d.getFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  };
+  const baseLayer = () => {
+    const basemapLayer = L.tileLayer.wms(
+      "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
+      {
+        layers: "BlueMarble_NextGeneration",
+        format: "image/png",
+        crs: L.CRS.EPSG4326,
+        opacity: 1.0,
+        backgroundColor: "transparent",
+        noWrap: true,
+        tileSize: 256,
+        errorTileUrl: "",
+        errorTileTimeout: 5000,
+        maxZoom: 20,
+        // attribution: "© OpenStreetMap",
+      },
+    );
+
+    const references = L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      {
+        noWrap: true,
+        minZoom: 3,
+        maxZoom: 19,
+        subdomains: "abcd",
+      },
+    );
+
+    return L.layerGroup([basemapLayer, references]);
+  };
+  const cloudLayer = () => {
+    const wmsLayer = L.tileLayer.wms(
+      "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
+      {
+        layers: ["VIIRS_NOAA20_CorrectedReflectance_TrueColor"],
+        format: "image/png",
+        crs: L.CRS.EPSG4326,
+        opacity: 1.0,
+        time: getMapDate(),
+        tileSize: 256,
+        transparent: true,
+        attribution: "",
+        noWrap: true,
+        errorTileTimeout: 5000,
+      },
+    );
+
+    const labelsLayer = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      {
+        zIndex: 1000,
+        noWrap: true,
+        tileSize: 256,
+        errorTileUrl: "",
+        errorTileTimeout: 5000,
+      },
+    );
+
+    return L.layerGroup([wmsLayer, labelsLayer]);
+  };
+
+  async function nearestDate(initDate) {
+    const d = new Date(initDate);
+    const [year, month, date] = [
+      d.getUTCFullYear(),
+      d.getUTCMonth() + 1,
+      d.getUTCDate(),
+    ];
+
+    const response = await axios.get(
+      `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
+    );
+
+    if (response.data.includes("Error")) {
+      d.setUTCDate(d.getUTCDate() - 1);
+      return nearestDate(d);
+    }
+
+    return d;
+  }
+
+  const toggleCloudLayer = () => {
+    if (cloudMapLayerMem) {
+      const newBaseLayer = baseLayer();
+      map.removeLayer(cloudMapLayerMem);
+      setCloudMapLayer(newBaseLayer);
+      map.addLayer(newBaseLayer);
+      setCloudMapLayer(null);
+    } else {
+      const newCloudLayer = cloudLayer();
+      setCloudMapLayer(newCloudLayer);
+      map.addLayer(newCloudLayer);
+    }
+
+    setIsCloudLayerVisible((prevState) => !prevState);
+  };
+
+  function initUTCDate(inDate = null) {
+    let d;
+
+    if (inDate === null) {
+      d = new Date();
+      nearestDate(d)
+        .then((res) => {
+          d = new Date(res);
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    } else {
+      d = new Date(inDate);
+    }
+    d.setUTCMinutes(0);
+
+    return d;
+  }
+
   const updateMap = () => {
     setRefreshMarkers(true);
     setTimeout(() => {
       setRefreshMarkers(false);
     }, 100);
   };
-  
+
   const handleZoomChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const zoom = parseInt(event.target.value, 10);
     if (map) {
@@ -204,192 +269,179 @@ function initUTCDate(inDate = null) {
       setZoomLevel(zoom);
     }
   };
-  
-  const handleChartDone = () =>{
-    setReady(false)
-    setShowChart(false)
-  }
 
-  const handleTimeSelect = (
-    event: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
+  const handleChartDone = () => {
+    setReady(false);
+    setShowChart(false);
+  };
+
+  const handleTimeSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     //console.log(event.target.value)
     setTime(event.target.value);
   };
-  const handleTypeSelect = (
-    event: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
+  const handleTypeSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     //console.log(event.target.value)
     setType(event.target.value);
     setExType(event.target.value);
   };
 
-   const genLabels = (readings) => {
+  const genLabels = (readings) => {
     const labels = [];
 
-    ////for (const rDate of Object.keys(readings[0])) { // uncomment if reverting back to line graph with all values [3 d] array 
+    ////for (const rDate of Object.keys(readings[0])) { // uncomment if reverting back to line graph with all values [3 d] array
     for (const date in readings) {
-      
-       const d = new Date(Object.keys(readings[date])[0]);
-    
+      const d = new Date(Object.keys(readings[date])[0]);
 
-        const formattedDate = d.toLocaleString('en-US', { 
-        weekday:'short',
-        day: '2-digit', 
-        month: 'short', 
-        year: 'numeric', 
-        //minute: '2-digit', 
-        timeZone: 'UTC', 
-        hour12: false
-        });
-      labels.push(formattedDate)
+      const formattedDate = d.toLocaleString("en-US", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        //minute: '2-digit',
+        timeZone: "UTC",
+        hour12: false,
+      });
+      labels.push(formattedDate);
     }
-   return labels 
-}
+    return labels;
+  };
   const setColor = (value: number, where: string) => {
-    
-    let c = d3.color("grey")
-    if(where === "outter"){
-    if (type.includes("PM")){    
-      if(value <= 12){
-          c = d3.color("green")
-        } else if (value <= 35){
-          c =  d3.color("yellow")
-        } else if (value <= 55){
-          c =  d3.color("orange")
-        }  if (value <= 150){
-           c =  d3.color("red")
-        } else if (value <= 250){
-           c =  d3.color("purple")
-        }else{
-           c =  d3.color("maroon")
+    let c = d3.color("grey");
+    if (where === "outter") {
+      if (type.includes("PM")) {
+        if (value <= 12) {
+          c = d3.color("green");
+        } else if (value <= 35) {
+          c = d3.color("yellow");
+        } else if (value <= 55) {
+          c = d3.color("orange");
         }
-   
-    }else{
-        if(value <= 50){
-           c =  d3.color("green")
-        } else if (value <= 100){
-           c =  d3.color("yellow")
-        } else if (value <= 150){
-           c =  d3.color("orange")
-        } else if (value <= 200){
-          c =   d3.color("red")
-        } else if (value <= 300){
-          c =   d3.color("purple")
-        }else{
-          c =   d3.color("maroon")
+        if (value <= 150) {
+          c = d3.color("red");
+        } else if (value <= 250) {
+          c = d3.color("purple");
+        } else {
+          c = d3.color("maroon");
         }
-    }
-    }
-    else if(where === "inner"){
-    if (type.includes("PM")){    
-      if(value <= 12){
-          c =   d3.color("green")
-        } else if (value <= 35){
-          c =   d3.color("yellow")
-        } else if (value <= 55){
-          c =   d3.color("orange")
-        } else if (value <= 150){
-          c =   d3.color("red")
-        } else if (value <= 250){
-          c =   d3.color("purple")
-        }else{
-          c =   d3.color("maroon")
+      } else {
+        if (value <= 50) {
+          c = d3.color("green");
+        } else if (value <= 100) {
+          c = d3.color("yellow");
+        } else if (value <= 150) {
+          c = d3.color("orange");
+        } else if (value <= 200) {
+          c = d3.color("red");
+        } else if (value <= 300) {
+          c = d3.color("purple");
+        } else {
+          c = d3.color("maroon");
         }
-   
-    }else{
-        if(value <= 50){
-          c =   d3.color("green")
+      }
+    } else if (where === "inner") {
+      if (type.includes("PM")) {
+        if (value <= 12) {
+          c = d3.color("green");
+        } else if (value <= 35) {
+          c = d3.color("yellow");
+        } else if (value <= 55) {
+          c = d3.color("orange");
+        } else if (value <= 150) {
+          c = d3.color("red");
+        } else if (value <= 250) {
+          c = d3.color("purple");
+        } else {
+          c = d3.color("maroon");
+        }
+      } else {
+        if (value <= 50) {
+          c = d3.color("green");
           c.opacity = 0.5;
-        } else if (value <= 100){
-          c =   d3.color("yellow") 
+        } else if (value <= 100) {
+          c = d3.color("yellow");
           c.opacity = 0.5;
-        } else if (value <= 150){
-          c =   d3.color("orange") 
+        } else if (value <= 150) {
+          c = d3.color("orange");
           c.opacity = 0.5;
-        } else if (value <= 200){
-          c =   d3.color("red")
+        } else if (value <= 200) {
+          c = d3.color("red");
           c.opacity = 0.5;
-        } else if (value <= 300){
-          c =   d3.color("purple")
+        } else if (value <= 300) {
+          c = d3.color("purple");
           c.opacity = 0.5;
-        }else{
-          c =   d3.color("maroon")
+        } else {
+          c = d3.color("maroon");
           c.opacity = 0.5;
         }
-    }
+      }
     }
 
     return c;
-
   };
-const setTextColor = (value: number) => {
-        
-    if (type.includes("PM")){    
-      if(value <= 12){
-          return "white"
-        } else if (value <= 35){
-          return "black"
-        } else if (value <= 55){
-          return "black"
-        } else if (value <= 150){
-          return "white"
-        } else if (value <= 250){
-          return "white"
-        }else{
-          return "white"
-        }
-    }else{
-        if(value <= 50){
-          return "white"
-        } else if (value <= 100){
-          return "black"
-        } else if (value <= 150){
-          return "black"
-        } else if (value <= 200){
-          return "white"
-        } else if (value <= 300){
-          return "white"
-        }else{
-          return "white"
-        }
+  const setTextColor = (value: number) => {
+    if (type.includes("PM")) {
+      if (value <= 12) {
+        return "white";
+      } else if (value <= 35) {
+        return "black";
+      } else if (value <= 55) {
+        return "black";
+      } else if (value <= 150) {
+        return "white";
+      } else if (value <= 250) {
+        return "white";
+      } else {
+        return "white";
+      }
+    } else {
+      if (value <= 50) {
+        return "white";
+      } else if (value <= 100) {
+        return "black";
+      } else if (value <= 150) {
+        return "black";
+      } else if (value <= 200) {
+        return "white";
+      } else if (value <= 300) {
+        return "white";
+      } else {
+        return "white";
+      }
     }
   };
 
-   const setText = (value: number) => {
-        
-    if (type.includes("PM")){    
-     if(value <= 12){
-          return "Good" 
-        } else if (value <= 35){
-          return "Moderate"
-        } else if (value <= 55){
-          return "Unhealthy for sensitive groups"
-        } else if (value <= 150){
-          return "Unhealthy"
-        } else if (value <= 250){
-          return "Very unhealthy"
-        }else{
-          return "Hazardous"
-        }
-      }else{
-if(value <= 50){
-          return "Good" 
-        } else if (value <= 100){
-          return "Moderate"
-        } else if (value <= 150){
-          return "Unhealthy for sensitive groups"
-        } else if (value <= 200){
-          return "Unhealthy"
-        } else if (value <= 300 ){
-          return "Very unhealthy"
-        }else{
-          return "Hazardous"
-        }
+  const setText = (value: number) => {
+    if (type.includes("PM")) {
+      if (value <= 12) {
+        return "Good";
+      } else if (value <= 35) {
+        return "Moderate";
+      } else if (value <= 55) {
+        return "Unhealthy for sensitive groups";
+      } else if (value <= 150) {
+        return "Unhealthy";
+      } else if (value <= 250) {
+        return "Very unhealthy";
+      } else {
+        return "Hazardous";
       }
+    } else {
+      if (value <= 50) {
+        return "Good";
+      } else if (value <= 100) {
+        return "Moderate";
+      } else if (value <= 150) {
+        return "Unhealthy for sensitive groups";
+      } else if (value <= 200) {
+        return "Unhealthy";
+      } else if (value <= 300) {
+        return "Very unhealthy";
+      } else {
+        return "Hazardous";
+      }
+    }
   };
-const buildChart = (cData) => {
-    
+  const buildChart = (cData) => {
     //const labels = genLabels(cData);
 
     //const pm25Data = cData[0] ? Array.from(Object.values(cData[0])) : [];
@@ -398,7 +450,7 @@ const buildChart = (cData) => {
     //
     //if (pm25Data.length === 0 || aqiData.length === 0 || dailyAqiData.length === 0) {
     //    console.error('Error within datadset.');
-    //    return {};  
+    //    return {};
     //}
     //
     //return {
@@ -426,87 +478,86 @@ const buildChart = (cData) => {
     //};
     //
     //const labels = [genLabels(cData[0]), genLabels(cData[1]), genLabels(cData[2])]
-    const labels = genLabels(cData)
+    const labels = genLabels(cData);
     const [d1] = cData[0] ? Array.from(Object.values(cData[0])) : [];
     const [d2] = cData[1] ? Array.from(Object.values(cData[1])) : [];
     const [d3] = cData[2] ? Array.from(Object.values(cData[2])) : [];
-    
+
     if (d1.length === 0 || d2.length === 0 || d3.length === 0) {
-        console.error('Error within datadset.');
-        return {};  
+      console.error("Error within datadset.");
+      return {};
     }
 
     return {
-        labels: labels,
-        datasets: [
-            {
-                label: `${setText(d1)} (${d1})`,
-                data: [d1,null,null] ,
-                skipNull: true,
-                borderColor: setColor(d1, "outter"),
-                backgroundColor: setColor(d1, "outter"), 
-                datalabels: {
-                  color: setTextColor(d1),
-                },
-            
-            },
-            {
-                label: `${setText(d2)} (${d2})`,
-                data: [null,d2,null],
-                skipNull: true,
-                borderColor: setColor(d2, "outter"),
-                backgroundColor: setColor(d2, "outter"), 
-                            datalabels: {
-                  color: setTextColor(d2),
-                },
-            },
-            {
-                label: `${setText(d3)} (${d3})`,
-                data: [null,null,d3] ,
-                skipNull: true, 
-                borderColor: setColor(d3, "outter"),
-                backgroundColor: setColor(d3, "outter"), 
-                            datalabels: {
-                  color: setTextColor(d3),
-                },
-            }
-        ]
+      labels: labels,
+      datasets: [
+        {
+          label: `${setText(d1)}`,
+          data: [d1, null, null],
+          skipNull: true,
+          borderColor: setColor(d1, "outter"),
+          backgroundColor: setColor(d1, "outter"),
+          datalabels: {
+            color: setTextColor(d1),
+          },
+        },
+        {
+          label: `${setText(d2)}`,
+          data: [null, d2, null],
+          skipNull: true,
+          borderColor: setColor(d2, "outter"),
+          backgroundColor: setColor(d2, "outter"),
+          datalabels: {
+            color: setTextColor(d2),
+          },
+        },
+        {
+          label: `${setText(d3)}`,
+          data: [null, null, d3],
+          skipNull: true,
+          borderColor: setColor(d3, "outter"),
+          backgroundColor: setColor(d3, "outter"),
+          datalabels: {
+            color: setTextColor(d3),
+          },
+        },
+      ],
     };
-};   
+  };
 
-const setMaxDate = ( date ) => {
-  const d = new Date(date) 
-  d.setUTCDate(d.getUTCDate() + 2) 
-  return d
-}
- 
-const genChartOptions =(name)=>{
-  return {
+  const setMaxDate = (date) => {
+    const d = new Date(date);
+    d.setUTCDate(d.getUTCDate());
+    return d;
+  };
 
-  responsive: true,
-  plugins: {
-    legend: {
-            display: false
-    
-    },
-    datalabels: {
-    font: {
-      size: "80%",
-    },
-    },
-    title: {
-      display: false,
-      text: name ? name : "",
-    },
-  },
-  }
-};
+  const genChartOptions = (name) => {
+    return {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        datalabels: {
+          font: {
+            size: "80%",
+          },
+        },
+        title: {
+          display: false,
+          text: name ? name : "",
+        },
+      },
+    };
+  };
 
   return (
     <>
       <Card className={styles.sidePanel}>
         <Card.Body>
-          <Card.Title style={{ textAlign: 'center'}}>Air Quality Forecast</Card.Title>
+          <Card.Title style={{ textAlign: "center" }}>
+            Air Quality Forecast
+          </Card.Title>
           <div className={styles.buttonGroup}>
             <div className={styles.sliderContainer}>
               <input
@@ -529,36 +580,64 @@ const genChartOptions =(name)=>{
             <Button
               //variant="normal"
               onClick={toggleCloudLayer}
-              >
-              {isCloudLayerVisible ? 'Disable Satellite Layer ' : 'Enable Satellite Layer'}
+            >
+              {isCloudLayerVisible
+                ? "Disable Satellite Layer "
+                : "Enable Satellite Layer"}
             </Button>
           </div>
 
           <hr className={styles.separator} />
           <Card.Title></Card.Title>
           <div className={styles.buttonGroup}>
-            {
-               apiDate && (
-                <>
+            {apiDate && (
+              <>
+                <DatePicker
+                  maxDate={dayjs(setMaxDate(initUTCDate()))}
+                  value={dayjs(fromInit)}
+                  onChange={(date) => {
+                    setApiDate(date.$d);
+                  }}
+                  showTimeSelect
+                  label="Model Initialization"
+                />
+
+                <Box className="mt-2" sx={{ minWidth: 120 }}>
+                  <FormControl fullWidth>
+                    <InputLabel id="">Forecast Date</InputLabel>
+                    <Select
+                      label="Forecast Date"
+                      value={innerDate}
+                      onChange={(event) => {
+                        setInnerDate(Number(event.target.value));
+                      }}
+                    >
+                      {selectArr.map((val, index) => (
+                        <MenuItem key={index} value={index}>
+                          {val}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                {/*
                   <DatePicker
-                    maxDate={dayjs( setMaxDate(initUTCDate()))}
-                    value={dayjs(apiDate)}
-                    onChange={(date) => { setApiDate(date.$d) }}
-                    showTimeSelect
-                  />    <DatePicker
                     value={dayjs(fromInit)}
                     showTimeSelect
-                    disabled
-                  />
-                  {
-                  type !== "DAILY_AQI" &&
+                    disabled/>
+                */}
+                {type !== "DAILY_AQI" && (
                   <>
-                    <p style={{ textAlign: 'center', marginBottom:'-5px'}}>3-Hour Average</p>
                     <select
                       className="form-select form-select"
-                      onChange={(event) => { handleTimeSelect(event) }}
+                      onChange={(event) => {
+                        handleTimeSelect(event);
+                      }}
                     >
-                      <option selected value="(130)">1:30 UTC</option>
+                      <option selected value="(130)">
+                        1:30 UTC
+                      </option>
                       <option value="(430)">4:30 UTC</option>
                       <option value="(730)">7:30 UTC</option>
                       <option value="(1030)">10:30 UTC</option>
@@ -568,44 +647,66 @@ const genChartOptions =(name)=>{
                       <option value="(2230)">22:30 UTC</option>
                     </select>
                   </>
-                  }
-                </>
-              )
-            }
+                )}
+              </>
+            )}
 
+            <select
+              class="form-select form-select"
+              label="time"
+              onChange={(event) => {
+                handleTypeSelect(event);
+              }}
+            >
+              {/* <option  value="PM">PM 2.5</option> */}
+              <option value="AQI">Air Quality Index</option>
+              {/* <option value="DAILY_AQI">DAILY AQI</option> */}
+            </select>
 
-          <select class="form-select form-select" label="time" onChange={(event) => {handleTypeSelect(event)}}>
-          {/* <option  value="PM">PM 2.5</option> */} 
-            <option value="AQI">Air Quality Index</option>
-           {/* <option value="DAILY_AQI">DAILY AQI</option> */}  
-          </select>
-
-
-          {
-            response != "" &&
-              <p style={{ textAlign: 'center', marginBottom:'-5px'}}>{response}</p>
-          }
-        </div>
+            {response != "" && (
+              <p style={{ textAlign: "center", marginBottom: "-5px" }}>
+                {response}
+              </p>
+            )}
+          </div>
         </Card.Body>
-      <SiteManager apiDate={apiDate} exInit={setFromInit} setChartData={setChartData} setClickedSite={setClickedSite} setShowChart={setShowChart} setResponse={setResponse} type={type} time={time} typeChanged={typeChanged}  zoom={zoom} markerSize={markerSize} refreshMarkers={refreshMarkers}/> 
+        <SiteManager
+          fromInit={innerDate}
+          setSelectArr={setSelectArr}
+          setFromInit={setInnerDate}
+          apiDate={apiDate}
+          exInit={setFromInit}
+          setChartData={setChartData}
+          setClickedSite={setClickedSite}
+          setShowChart={setShowChart}
+          setResponse={setResponse}
+          type={type}
+          time={time}
+          typeChanged={typeChanged}
+          zoom={zoom}
+          markerSize={markerSize}
+          refreshMarkers={refreshMarkers}
+        />
       </Card>
-      <Modal show={showChart} onHide={() => handleChartDone()} className={"modal-lg"} centered>
+      <Modal
+        show={showChart}
+        onHide={() => handleChartDone()}
+        className={"modal-lg"}
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>{clickedSite}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-        {
-          ready &&
-          //<Line option={chartOptions} data={chartD} />
-          <Bar options={chartOptions} data={chartD} />
-        } 
+          {ready && (
+            //<Line option={chartOptions} data={chartD} />
+            <Bar options={chartOptions} data={chartD} />
+          )}
         </Modal.Body>
-        <Modal.Footer>
-        </Modal.Footer>
+        <Modal.Footer></Modal.Footer>
       </Modal>
     </>
   );
 };
 
 export default SidePanel;
-

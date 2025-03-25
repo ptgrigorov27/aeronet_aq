@@ -27,4 +27,3 @@ export const useMapContext = (): MapContextProps => {
   }
   return context;
 };
-
