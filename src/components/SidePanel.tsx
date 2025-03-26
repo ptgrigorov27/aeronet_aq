@@ -81,16 +81,28 @@ const SidePanel: React.FC = ({ setExType }) => {
   const [cloudMapLayerMem, setCloudMapLayer] = useState(null);
   const [ready, setReady] = useState<boolean>(false);
   //const maxDate = useState<string>(initUTCDate())
+  const [collapsed, setCollapsed] = useState(false);
   const [fromInit, setFromInit] = useState<number>(0);
   const [selectArr, setSelectArr] = useState<string[]>(["", "", ""]);
-
+  const timeArr = [130, 430, 730, 1030, 1330, 1630, 1930, 2230];
+  const selectTimeArr = [
+    "1:30 UTC",
+    "4:30 UTC",
+    "7:30 UTC",
+    "10:30 UTC",
+    "13:30 UTC",
+    "16:30 UTC",
+    "19:30 UTC",
+    "22:30 UTC",
+  ];
   // On site load
   useEffect(() => {
     setTimeout(() => {
-      setApiDate(initUTCDate());
+      setApiDate(new Date());
       setType("AQI");
+      nearestTime(new Date());
     }, 500);
-  }, []);
+  }, [map]);
 
   //NOTE: This updates the map on these values change
   useEffect(() => {
@@ -135,7 +147,7 @@ const SidePanel: React.FC = ({ setExType }) => {
   const getMapDate = () => {
     //console.log(apiDate);
     const d = new Date(fromInit);
-    d.setDate(d.getDate() + innerDate);
+    d.setUTCDate(d.getUTCDate() + innerDate);
     return `${d.getFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
   };
   const baseLayer = () => {
@@ -215,9 +227,30 @@ const SidePanel: React.FC = ({ setExType }) => {
       d.setUTCDate(d.getUTCDate() - 1);
       return nearestDate(d);
     }
-
+    console.log(year, month, date);
     return d;
   }
+
+  const nearestTime = (dt) => {
+    const d = new Date(dt);
+    const hr = d.getUTCHours() * 100;
+    const min = d.getUTCMinutes();
+    const time = hr + min;
+
+    let nearestValue = timeArr[0];
+    let minDifference = Math.abs(timeArr[0] - time);
+    for (let i = 1; i < timeArr.length; i++) {
+      const difference = Math.abs(timeArr[i] - time);
+
+      if (difference < minDifference) {
+        minDifference = difference;
+        nearestValue = i;
+      }
+    }
+
+    setTime(`(${timeArr[nearestValue]})`);
+    return nearestValue;
+  };
 
   const toggleCloudLayer = () => {
     if (cloudMapLayerMem) {
@@ -275,9 +308,9 @@ const SidePanel: React.FC = ({ setExType }) => {
     setShowChart(false);
   };
 
-  const handleTimeSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleTimeSelect = (value: string) => {
     //console.log(event.target.value)
-    setTime(event.target.value);
+    setTime(value);
   };
   const handleTypeSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     //console.log(event.target.value)
@@ -315,8 +348,7 @@ const SidePanel: React.FC = ({ setExType }) => {
           c = d3.color("yellow");
         } else if (value <= 55) {
           c = d3.color("orange");
-        }
-        if (value <= 150) {
+        } else if (value <= 150) {
           c = d3.color("red");
         } else if (value <= 250) {
           c = d3.color("purple");
@@ -550,10 +582,53 @@ const SidePanel: React.FC = ({ setExType }) => {
       },
     };
   };
-
+  const toggleCollapse = () => {
+    setCollapsed(!collapsed);
+  };
   return (
     <>
-      <Card className={styles.sidePanel}>
+      <h5
+        style={{
+          zIndex: 1001,
+          top: "15rem",
+          right: collapsed ? "2rem" : "21.8rem",
+          transform: "rotate(270deg)",
+          transformOrigin: "right top",
+          whiteSpace: "nowrap",
+          margin: "0",
+          position: "fixed",
+          height: "auto",
+          color: "black",
+          backgroundColor: "rgba(255, 255, 255, 0.9)",
+          textDecoration: "none",
+        }}
+      >
+        <button
+          style={{
+            color: "inherit",
+            textDecoration: "none",
+          }}
+          className="btn btn-link"
+          onClick={toggleCollapse}
+          aria-expanded={!collapsed}
+          aria-controls="collapseMod"
+        >
+          {collapsed ? "Show" : "Hide"}
+        </button>
+      </h5>
+
+      <Card
+        id="collapseMod"
+        style={{
+          width: "18rem",
+          position: "fixed",
+          right: "1.5rem",
+          top: "1.5rem",
+          zIndex: 1000,
+          background: "rgba(255, 255, 255, 0.9) !important",
+        }}
+        className={`collapse ${collapsed ? "" : "show"}`}
+      >
         <Card.Body>
           <Card.Title style={{ textAlign: "center" }}>
             Air Quality Forecast
@@ -629,23 +704,24 @@ const SidePanel: React.FC = ({ setExType }) => {
                 */}
                 {type !== "DAILY_AQI" && (
                   <>
-                    <select
-                      className="form-select form-select"
-                      onChange={(event) => {
-                        handleTimeSelect(event);
-                      }}
-                    >
-                      <option selected value="(130)">
-                        1:30 UTC
-                      </option>
-                      <option value="(430)">4:30 UTC</option>
-                      <option value="(730)">7:30 UTC</option>
-                      <option value="(1030)">10:30 UTC</option>
-                      <option value="(1330)">13:30 UTC</option>
-                      <option value="(1630)">16:30 UTC</option>
-                      <option value="(1930)">19:30 UTC</option>
-                      <option value="(2230)">22:30 UTC</option>
-                    </select>
+                    <Box className="mt-2" sx={{ minWidth: 120 }}>
+                      <FormControl fullWidth>
+                        <InputLabel id="">Time</InputLabel>
+                        <Select
+                          label="Time"
+                          value={time}
+                          onChange={(event) => {
+                            handleTimeSelect(event.target.value);
+                          }}
+                        >
+                          {selectTimeArr.map((val, index) => (
+                            <MenuItem key={index} value={`(${timeArr[index]})`}>
+                              {val}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
                   </>
                 )}
               </>

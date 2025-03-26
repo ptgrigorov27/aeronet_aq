@@ -46,7 +46,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }, [readings, type, time, fromInit]);
 
   useEffect(() => {
-    fetchReadings();
+    fetchReadings(apiDate);
   }, [apiDate]);
 
   const updateMarkerSize = (size: number) => {
@@ -231,153 +231,98 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   };
 
   const fetchReadings = async (sAPI = null, failed = 0) => {
-    let d = null;
+    let d = new Date();
     setResponse("Fetch in progress...");
-    if (sAPI && failed >= 3) {
-      setResponse("No data found in range.");
-      return;
-    } else if (sAPI && failed < 3) {
+    console.log(sAPI);
+
+    if (sAPI) {
       d = new Date(sAPI);
+    }
 
-      d.setUTCDate(d.getUTCDate() - 1);
-      const [year, month, date] = [
-        d.getUTCFullYear(),
-        d.getUTCMonth() + 1,
-        d.getUTCDate(),
-      ];
-      //cosole.log(date, failed++);
+    [d, failed] = await nearestDate(d);
 
+    console.log(failed);
+    if (failed > 2) {
+      setResponse("Date not found in API.");
+      return;
+    }
+
+    console.log(d);
+
+    const [year, month, date] = [
+      d.getUTCFullYear(),
+      d.getUTCMonth() + 1,
+      d.getUTCDate(),
+    ];
+    try {
       const response = await axios.get(
         `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
       );
-
-      if (response.data.includes("Error")) {
-        console.error(`Error occurred on site -> ${response.data}`);
-        setResponse(`Failed: No Data Found ${year}-${month}-${date}`);
-        return fetchReadings(d, failed++);
-      } else {
-        setResponse("Loading Set...");
-      }
-      try {
-        console.log(
-          `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
-        );
-        const csvBase = document.createElement("html");
-        csvBase.innerHTML = response.data;
-        const locationData = csvBase.textContent
-          .split("\n")
-          .slice(2)
-          .join("\n");
-        const data = csvToJSON(locationData);
-
-        //const location_file = await fetch("/src/out.csv").then((response) =>
-        //  response.text(),
-        //);
-        const location_file = await fetch("/new_web/aeronet_aq/out.csv").then(
-          (response) => response.text(),
-        );
-        const data2 = csvToJSON(location_file);
-        const coordResult = {};
-        data2.forEach((obj) => {
-          const siteName = obj.sitename.toLowerCase();
-          coordResult[siteName] = {
-            Latitude: parseFloat(obj.Latitude),
-            Longitude: parseFloat(obj.Longitude),
-          };
-        });
-
-        setSelectArr(setSelection(d));
-
-        const readingResult = {};
-        data.forEach((obj) => {
-          const siteName = obj.Site_Name.toLowerCase();
-          if (!readingResult[siteName]) {
-            readingResult[siteName] = [];
-          }
-          readingResult[siteName].push(obj);
-        });
-
-        setResponse(``);
-        setCoordArr(coordResult);
-        setReadings(readingResult);
-        setFromInit(failed);
-      } catch (e) {
-        console.error(e);
-        setResponse("API returned: No data available.");
-        setSelectArr(["", "", ""]);
-      }
-    } else if (apiDate) {
-      d = new Date(apiDate);
-      const [year, month, date] = [
-        d.getUTCFullYear(),
-        d.getUTCMonth() + 1,
-        d.getUTCDate(),
-      ];
-
-      //console.log(year, month, date)
-
-      const response = await axios.get(
+      console.log(
         `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
       );
+      const csvBase = document.createElement("html");
+      csvBase.innerHTML = response.data;
+      const locationData = csvBase.textContent.split("\n").slice(2).join("\n");
+      const data = csvToJSON(locationData);
 
-      if (response.data.includes("Error")) {
-        console.error(`Error occurred on site -> ${response.data}`);
-        setResponse(`Failed: No Data Found ${year}-${month}-${date}`);
-        return fetchReadings(d, failed++);
-      } else {
-        setResponse("Loading Set...");
-      }
-      try {
-        console.log(
-          `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
-        );
-        const csvBase = document.createElement("html");
-        csvBase.innerHTML = response.data;
-        const locationData = csvBase.textContent
-          .split("\n")
-          .slice(2)
-          .join("\n");
-        const data = csvToJSON(locationData);
+      //const location_file = await fetch("/src/out.csv").then((response) =>
+      const location_file = await fetch("/new_web/aqforecast/out.csv").then(
+        (response) => response.text(),
+      );
+      const data2 = csvToJSON(location_file);
+      const coordResult = {};
+      data2.forEach((obj) => {
+        const siteName = obj.sitename.toLowerCase();
+        coordResult[siteName] = {
+          Latitude: parseFloat(obj.Latitude),
+          Longitude: parseFloat(obj.Longitude),
+        };
+      });
 
-        //const location_file = await fetch("/src/out.csv").then((response) =>
-        //  response.text(),
-        //);
-        const location_file = await fetch("/new_web/aeronet_aq/out.csv").then(
-          (response) => response.text(),
-        );
-        const data2 = csvToJSON(location_file);
-        const coordResult = {};
-        data2.forEach((obj) => {
-          const siteName = obj.sitename.toLowerCase();
-          coordResult[siteName] = {
-            Latitude: parseFloat(obj.Latitude),
-            Longitude: parseFloat(obj.Longitude),
-          };
-        });
-        setSelectArr(setSelection(d));
+      setSelectArr(setSelection(d));
 
-        const readingResult = {};
-        data.forEach((obj) => {
-          const siteName = obj.Site_Name.toLowerCase();
-          if (!readingResult[siteName]) {
-            readingResult[siteName] = [];
-          }
-          readingResult[siteName].push(obj);
-        });
+      const readingResult = {};
+      data.forEach((obj) => {
+        const siteName = obj.Site_Name.toLowerCase();
+        if (!readingResult[siteName]) {
+          readingResult[siteName] = [];
+        }
+        readingResult[siteName].push(obj);
+      });
 
-        setResponse(``); // success msg
-        setCoordArr(coordResult);
-        setReadings(readingResult);
-        setFromInit(failed);
-      } catch (e) {
-        console.error(e);
-        setResponse("API returned: No data available.");
-        setSelectArr(["", "", ""]);
-      }
+      setResponse(``);
+      setCoordArr(coordResult);
+      setReadings(readingResult);
+      setFromInit(failed);
+    } catch (e) {
+      console.error(e);
+      setResponse("API returned: No data available.");
+      setSelectArr(["", "", ""]);
     }
     setInitDate(d);
     exInit(d);
   };
+  async function nearestDate(d, failed = 0) {
+    console.log(failed, d);
+    const [year, month, date] = [
+      d.getFullYear(),
+      d.getMonth() + 1,
+      d.getDate(),
+    ];
+
+    const response = await axios.get(
+      `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
+    );
+
+    if (response.data.includes("Error")) {
+      d.setUTCDate(d.getUTCDate() - 1);
+      return nearestDate(d, failed + 1);
+    }
+    console.log(year, month, date);
+    return [d, failed];
+  }
+
   function formatDateAndParse(num, markerReference) {
     if (!num) {
       num = "(130)";
@@ -414,7 +359,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     for (let day = 0; day < 3; day++) {
       //d.setUTCMinutes(30);
       d.setUTCSeconds(0);
-      // Loop through each hour from 1 to 22
       chartData[day][d.toISOString()] = reading[day]["DAILY_AQI"];
       //        for (let hour = 1; hour <= 22; hour += 3) {
       //            d.setUTCHours(hour);
