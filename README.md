@@ -1,3 +1,3 @@
 # AERONET Air Quality Forecast
 
-![2025-03-27_17-30-12](https://github.com/user-attachments/assets/be9262ff-4402-44f9-baf4-bd4376d00617)
+![2025-03-28_12-56-23](https://github.com/user-attachments/assets/6e1e36aa-1a7f-449c-bc9b-92948efd1a20)
