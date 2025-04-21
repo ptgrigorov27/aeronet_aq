@@ -95,6 +95,18 @@ const SidePanel: React.FC = ({ setExType }) => {
     "19:30 UTC",
     "22:30 UTC",
   ];
+
+  const [scrnWidth, setScrnWidth] = useState(600);
+  useEffect(() => {
+    const handleResize = () => {
+      setScrnWidth(window.innerWidth);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
   // On site load
   useEffect(() => {
     setTimeout(() => {
@@ -572,7 +584,7 @@ const SidePanel: React.FC = ({ setExType }) => {
         },
         datalabels: {
           font: {
-            size: "80%",
+            size: scrnWidth > 575 ? "80%" : "50%",
           },
         },
         title: {

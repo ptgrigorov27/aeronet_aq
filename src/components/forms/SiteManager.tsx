@@ -266,7 +266,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       const locationData = csvBase.textContent.split("\n").slice(2).join("\n");
       const data = csvToJSON(locationData);
 
-      //const location_file = await fetch("/src/out.csv").then(
+      // const location_file = await fetch("/src/out.csv").then(
       const location_file = await fetch("/new_web/aqforecast/out.csv").then(
         (response) => response.text(),
       );
