@@ -3,9 +3,10 @@ import { useMapContext } from "../MapContext";
 import L from "leaflet";
 import * as d3 from "d3";
 import "leaflet-svg-shape-markers";
-import API_BASE_URL from "../../config";
+import { API_ARNT, API_AQ, API_DEF } from "../../config";
 import axios from "axios";
 import styles from "./Map.module.css";
+import { setTextColor, setText, setColor } from "../Utils";
 
 const SiteManager: React.FC<SiteManagerProps> = ({
   exInit,
@@ -15,6 +16,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   setChartData,
   time,
   setClickedSite,
+  enabledMarkers,
   zoom,
   setResponse,
   fromInit,
@@ -22,22 +24,41 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   setSelectArr,
   markerSize,
   refreshMarkers,
-  children,
+  setRefreshMarkers,
+  zoomChange,
+  setZoomChange,
 }) => {
   const { map } = useMapContext();
-  const [readings, setReadings] = useState<Array<{ [key: string]: any }>>([]);
+  const [readings, setReadingsDEF] = useState<Array<{ [key: string]: string }>>(
+    [],
+  );
   const [coordArr, setCoordArr] = useState<Array<string>>([]);
-  const [initDate, setInitDate] = useState<string>(null);
+  const [initDate, setInitDate] = useState<string>("");
+  const api_urls = {
+    "DoS Missions": API_DEF,
+    AERONET: API_ARNT,
+    "Open AQ": API_AQ,
+  };
+
   useEffect(() => {
     if (zoom) {
       updateMarkerSize(markerSize);
     }
   }, [zoom, map]);
+
+  useEffect(() => {
+    clearMarkers();
+    fetchMarkers(apiDate, 0);
+  }, zoomChange);
+
   useEffect(() => {
     if (refreshMarkers) {
       clearMarkers();
+      fetchReadings(apiDate, 0);
       fetchMarkers(type, time);
     }
+
+    setRefreshMarkers(false);
   }, [refreshMarkers]);
 
   useEffect(() => {
@@ -46,8 +67,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }, [readings, type, time, fromInit]);
 
   useEffect(() => {
-    fetchReadings(apiDate);
-  }, [apiDate]);
+    fetchReadings(apiDate, 0);
+  }, [apiDate, enabledMarkers]);
 
   const updateMarkerSize = (size: number) => {
     if (map) {
@@ -61,7 +82,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     }
   };
 
-  const clearMarkers = () => {
+  function clearMarkers() {
     if (map) {
       map.eachLayer((layer: L.Layer) => {
         if (
@@ -72,7 +93,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         }
       });
     }
-  };
+  }
 
   function csvToJSON(csv: string) {
     const lines = csv.split("\n");
@@ -102,122 +123,28 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     return result;
   }
 
-  const setColor = (value: number) => {
-    if (type.includes("PM")) {
-      if (value <= 12) {
-        return d3.color("green");
-      } else if (value <= 35) {
-        return d3.color("yellow");
-      } else if (value <= 55) {
-        return d3.color("orange");
-      } else if (value <= 150) {
-        return d3.color("red");
-      } else if (value <= 250) {
-        return d3.color("purple");
-      } else {
-        return d3.color("maroon");
-      }
-    } else {
-      if (value <= 50) {
-        return d3.color("green");
-      } else if (value <= 100) {
-        return d3.color("yellow");
-      } else if (value <= 150) {
-        return d3.color("orange");
-      } else if (value <= 200) {
-        return d3.color("red");
-      } else if (value <= 300) {
-        return d3.color("purple");
-      } else {
-        return d3.color("maroon");
-      }
-    }
-  };
-
-  const setTextColor = (value: number) => {
-    if (type.includes("PM")) {
-      if (value <= 12) {
-        return d3.color("white");
-      } else if (value <= 35) {
-        return d3.color("black");
-      } else if (value <= 55) {
-        return d3.color("black");
-      } else if (value <= 150) {
-        return d3.color("white");
-      } else if (value <= 250) {
-        return d3.color("white");
-      } else {
-        return d3.color("white");
-      }
-    } else {
-      if (value <= 50) {
-        return d3.color("white");
-      } else if (value <= 100) {
-        return d3.color("black");
-      } else if (value <= 150) {
-        return d3.color("black");
-      } else if (value <= 200) {
-        return d3.color("white");
-      } else if (value <= 300) {
-        return d3.color("white");
-      } else {
-        return d3.color("white");
-      }
-    }
-  };
-
-  const setText = (value: number) => {
-    if (type.includes("PM")) {
-      if (value <= 12) {
-        return "Good";
-      } else if (value <= 35) {
-        return "Moderate";
-      } else if (value <= 55) {
-        return "Unhealthy for sensitive groups";
-      } else if (value <= 150) {
-        return "Unhealthy";
-      } else if (value <= 250) {
-        return "Very unhealthy";
-      } else {
-        return "Hazardous";
-      }
-    } else {
-      if (value <= 50) {
-        return "Good";
-      } else if (value <= 100) {
-        return "Moderate";
-      } else if (value <= 150) {
-        return "Unhealthy for sensitive groups";
-      } else if (value <= 200) {
-        return "Unhealthy";
-      } else if (value <= 300) {
-        return "Very unhealthy";
-      } else {
-        return "Hazardous";
-      }
-    }
-  };
-
-  const setSelection = (d) => {
-    let [d1, d4, d2, d3] = [null, null, null, null];
-    d2 = new Date(d);
+  function setSelection(d: Date) {
+    const d2 = new Date(d);
     d2.setUTCDate(d.getUTCDate() + 1);
 
-    d3 = new Date(d2);
+    const d3 = new Date(d2);
     d3.setUTCDate(d2.getUTCDate() + 1);
 
-    d4 = new Date(d3);
+    const d4 = new Date(d3);
     d4.setUTCDate(d3.getUTCDate() + 1);
+
     const [year1, month1, date1] = [
       d.getUTCFullYear(),
       d.getUTCMonth() + 1,
       d.getUTCDate(),
     ];
+
     const [year2, month2, date2] = [
       d2.getUTCFullYear(),
       d2.getUTCMonth() + 1,
       d2.getUTCDate(),
     ];
+
     const [year3, month3, date3] = [
       d3.getUTCFullYear(),
       d3.getUTCMonth() + 1,
@@ -228,83 +155,93 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       `${month2.toString().padStart(2, "0")}/${date2.toString().padStart(2, "0")}/${year2}`,
       `${month3.toString().padStart(2, "0")}/${date3.toString().padStart(2, "0")}/${year3}`,
     ];
-  };
+  }
 
-  const fetchReadings = async (sAPI = null, failed = 0) => {
+  async function fetchReadings(
+    sAPI?: string,
+    failed?: number,
+  ): Promise<boolean> {
+    const readingResult = {};
     let d = new Date();
-    setResponse("Fetch in progress...");
-    console.log(sAPI);
-
-    if (sAPI) {
-      d = new Date(sAPI);
-    }
-
-    [d, failed] = await nearestDate(d);
-
-    console.log(failed);
-    if (failed > 2) {
-      setResponse("Date not found in API.");
-      return;
-    }
-
-    console.log(d);
-
-    const [year, month, date] = [
-      d.getUTCFullYear(),
-      d.getUTCMonth() + 1,
-      d.getUTCDate(),
-    ];
+    const coordResult = {};
     try {
-      const response = await axios.get(
-        `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
-      );
-      console.log(
-        `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
-      );
-      const csvBase = document.createElement("html");
-      csvBase.innerHTML = response.data;
-      const locationData = csvBase.textContent.split("\n").slice(2).join("\n");
-      const data = csvToJSON(locationData);
+      [d, failed] = await nearestDate(d, API_DEF);
 
-      // const location_file = await fetch("/src/out.csv").then(
-      const location_file = await fetch("/new_web/aqforecast/out.csv").then(
-        (response) => response.text(),
-      );
-      const data2 = csvToJSON(location_file);
-      const coordResult = {};
-      data2.forEach((obj) => {
-        const siteName = obj.sitename.toLowerCase();
-        coordResult[siteName] = {
-          Latitude: parseFloat(obj.Latitude),
-          Longitude: parseFloat(obj.Longitude),
-        };
-      });
+      for (const key in enabledMarkers) {
+        if (enabledMarkers[key]) {
+          const api_selected = api_urls[key];
+          setResponse("Fetch in progress...");
+          if (sAPI) {
+            d = new Date(sAPI);
+          }
 
-      setSelectArr(setSelection(d));
+          // INFO: Deconstruct return to check range limit and capture date returned
 
-      const readingResult = {};
-      data.forEach((obj) => {
-        const siteName = obj.Site_Name.toLowerCase();
-        if (!readingResult[siteName]) {
-          readingResult[siteName] = [];
+          if (failed > 2) {
+            setResponse("Date not found in API.");
+            return true;
+          }
+
+          const [year, month, date] = [
+            d.getUTCFullYear(),
+            d.getUTCMonth() + 1,
+            d.getUTCDate(),
+          ];
+
+          const response = await axios.get(
+            `${api_selected}year=${year}&month=${month}&day=${date}`,
+          );
+
+          const csvBase = document.createElement("html");
+          csvBase.innerHTML = response.data;
+          const locationData = csvBase.textContent
+            ?.split("\n")
+            .slice(2)
+            .join("\n");
+          const data = csvToJSON(locationData);
+          // const location_file = await fetch("/src/out.csv").then(
+          const location_file = await fetch("/new_web/aqforecast/out.csv").then(
+            (response) => response.text(),
+          );
+
+          const data2 = csvToJSON(location_file);
+          data2.forEach((obj) => {
+            const siteName = obj.sitename.toLowerCase();
+            coordResult[siteName] = {
+              Latitude: parseFloat(obj.Latitude),
+              Longitude: parseFloat(obj.Longitude),
+            };
+          });
+
+          setSelectArr(setSelection(d));
+
+          data.forEach((obj) => {
+            const siteName = obj.Site_Name.toLowerCase();
+            if (!readingResult[siteName]) {
+              readingResult[siteName] = [];
+            }
+            readingResult[siteName].push(obj);
+          });
         }
-        readingResult[siteName].push(obj);
-      });
-
-      setResponse(``);
+      }
+      setResponse("");
       setCoordArr(coordResult);
-      setReadings(readingResult);
+      setReadingsDEF(readingResult);
       setFromInit(failed);
+
+      exInit(d);
+      setInitDate(d);
     } catch (e) {
       console.error(e);
       setResponse("API returned: No data available.");
       setSelectArr(["", "", ""]);
+      return false;
     }
-    setInitDate(d);
-    exInit(d);
-  };
-  async function nearestDate(d, failed = 0) {
-    console.log(failed, d);
+
+    return true;
+  }
+
+  async function nearestDate(d, api_selected, failed = 0) {
     const [year, month, date] = [
       d.getFullYear(),
       d.getMonth() + 1,
@@ -312,15 +249,15 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     ];
 
     const response = await axios.get(
-      `https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?year=${year}&month=${month}&day=${date}`,
+      `${api_selected}year=${year}&month=${month}&day=${date}`,
     );
 
     if (response.data.includes("Error")) {
       d.setUTCDate(d.getUTCDate() - 1);
       return nearestDate(d, failed + 1);
     }
-    console.log(year, month, date);
-    return [d, failed];
+
+    return [new Date(year, month - 1, date), failed];
   }
 
   function formatDateAndParse(num, markerReference) {
@@ -334,22 +271,16 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     const monthOptions = { month: "short" };
     const dateOptions = { day: "numeric" };
     const yearOptions = { year: "numeric" };
-
     const formattedDay = date.toLocaleDateString("en-US", dayOptions);
     const formattedMonth = date.toLocaleDateString("en-US", monthOptions);
     const formattedDate = date.toLocaleDateString("en-US", dateOptions);
     const formattedYear = date.toLocaleDateString("en-US", yearOptions);
-
     const formattedDateStr = `${formattedDay} ${formattedMonth} ${formattedDate} ${formattedYear}`;
-
     const numString = num.replace(/[()]/g, "").toString().padStart(4, "0");
     const firstTwo = numString.slice(0, 2);
     const lastTwo = numString.slice(2, 4);
-
     const formattedNum = `${firstTwo}:${lastTwo}`;
-
     const finalFormattedString = `${formattedDateStr} ${formattedNum} UTC`;
-
     return finalFormattedString;
   }
   const createChartData = (reading) => {
@@ -357,44 +288,19 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     const d = new Date(initDate);
 
     for (let day = 0; day < 3; day++) {
-      //d.setUTCMinutes(30);
       d.setUTCSeconds(0);
       chartData[day][d.toISOString()] = reading[day]["DAILY_AQI"];
-      //        for (let hour = 1; hour <= 22; hour += 3) {
-      //            d.setUTCHours(hour);
-      //
-      //            const rKeyPM =
-      //Object.keys(reading[day]).find(x => x.includes("PM") &&
-      //x.includes(`(${hour}30)`));
-      //            const rKeyAQI =
-      //Object.keys(reading[day]).find(x => x.includes("AQI") &&
-      //x.includes(`(${hour}30)`));
-      //            const rKeyDAQI =
-      //Object.keys(reading[day]).find(x => x.includes("DAILY_AQI")
-      //);
-      //
-      //            chartData[0][d.toISOString()] =
-      //reading[day][rKeyPM];
-      //            chartData[1][d.toISOString()] =
-      //reading[day][rKeyAQI];
-      //            chartData[2][d.toISOString()] =
-      //reading[day][rKeyDAQI];
-      //
-      //        }
-      //
       d.setUTCDate(d.getUTCDate() + 1);
     }
-    //console.log(chartData)
     return chartData;
   };
 
   const fetchMarkers = (type: string, time: string) => {
     let rKey;
+
     if (readings) {
-      //console.log(readings);
       try {
         for (const site in coordArr) {
-          //console.log("fromInit", fromInit);
           if (Object.keys(readings).includes(site)) {
             if (type !== "DAILY_AQI") {
               rKey = Object.keys(readings[site][fromInit]).find(
@@ -408,9 +314,12 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             const value = type.includes("AQI")
               ? parseInt(readings[site][fromInit][rKey])
               : parseFloat(readings[site][fromInit][rKey]);
+
             const markerColor = setColor(
               parseFloat(readings[site][fromInit][rKey]),
+              "outter",
             );
+
             const markerReference = readings[site][fromInit];
             const markerType = {
               PM: "PM 2.5",
@@ -425,7 +334,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               })
               .join(" ");
             const pmKey = Object.keys(readings[site][fromInit]).find(
-              (x) => x.includes(`PM`) && x.includes(`${time}`),
+              (x) => x.includes("PM") && x.includes(`${time}`),
             );
             const pm = readings[site][fromInit][pmKey];
             const marker = L.circleMarker(
@@ -489,9 +398,9 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           }
         }
       } catch (e) {
+        console.error("The following error occured in fetchReadings();");
         console.log(e);
         console.log(readings);
-
         setResponse("API returned: No data available.");
       }
     }

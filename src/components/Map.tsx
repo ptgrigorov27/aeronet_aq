@@ -88,11 +88,6 @@ const CustomMapLayer: React.FC = () => {
     map.options.preferCanvas = true;
     map.setMinZoom(3);
     map.setMaxZoom(19);
-    map.setMaxBounds([
-      [-90, -180],
-      [90, 180],
-    ]);
-    map.setMaxBounds(map.getBounds().pad(Math.sqrt(2) / 2));
 
     setMap(map);
 
