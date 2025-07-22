@@ -51,7 +51,7 @@ const SidePanel: React.FC = (setExType) => {
     (zoomLevel + 2) * (Math.E - 1),
   );
   const [innerDate, setInnerDate] = useState<number>(0);
-  const [apiDate, setApiDate] = useState<Date | null>(null);
+  const [apiDate, setApiDate] = useState<string>("");
   const [refreshMarkers, setRefreshMarkers] = useState<boolean>(false);
   const [typeChanged] = useState<boolean>(false);
   const [type, setType] = useState<string>("");
@@ -97,7 +97,6 @@ const SidePanel: React.FC = (setExType) => {
   ];
 
   const [scrnWidth, setScrnWidth] = useState(600);
-  const [maxDate, setMaxDateState] = useState<dayjs.Dayjs | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -126,16 +125,6 @@ const SidePanel: React.FC = (setExType) => {
       nearestTime(String(new Date()));
     }, 500);
   }, [map]);
-
-  useEffect(() => {
-    async function init() {
-      const d = await initUTCDate();
-      setApiDate(d);
-      setMaxDateState(dayjs(d));
-    }
-  
-    init();
-  }, []);
 
   //NOTE: This updates the map on these values change
   useEffect(() => {
@@ -304,22 +293,20 @@ const SidePanel: React.FC = (setExType) => {
       : writeLayer(cloudLayer());
   }
 
-  async function initUTCDate(inDate: string | null = null): Promise<Date> {
+  function initUTCDate(inDate = null): Date {
     let d: Date;
-
     if (inDate === null) {
-      try {
-        const now = new Date();
-        const nearest = await nearestDate(now);
-        d = new Date(nearest);
-      } catch (err) {
-        console.error("Failed to get nearest date. Falling back to now.", err);
-        d = new Date();
-      }
+      d = new Date();
+      nearestDate(d)
+        .then((res) => {
+          d = new Date(res);
+        })
+        .catch((error) => {
+          console.error(error);
+        });
     } else {
       d = new Date(inDate);
     }
-
     d.setUTCMinutes(0);
     return d;
   }
@@ -420,7 +407,7 @@ const SidePanel: React.FC = (setExType) => {
     };
   }
 
-  function setMaxDate(date: string | Date): Date {
+  function setMaxDate(date: string): Date {
     const d = new Date(date);
     d.setUTCDate(d.getUTCDate());
     return d;
@@ -538,11 +525,11 @@ const SidePanel: React.FC = (setExType) => {
           </div>
           <hr className={styles.separator} />
           <div className={styles.buttonGroup}>
-            {apiDate && maxDate && (
+            {apiDate && (
               <>
                 <DatePicker
-                  maxDate={maxDate}
-                  value={dayjs(apiDate)}
+                  maxDate={dayjs(setMaxDate(initUTCDate()))}
+                  value={dayjs(fromInit)}
                   onChange={(date) => {
                     setApiDate(date.$d);
                   }}
