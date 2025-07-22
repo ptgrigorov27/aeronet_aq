@@ -299,6 +299,7 @@ const SidePanel: React.FC = (setExType) => {
       d = new Date();
       nearestDate(d)
         .then((res) => {
+console.log("nearestDate resolved to:", res);
           d = new Date(res);
         })
         .catch((error) => {
