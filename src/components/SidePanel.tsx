@@ -293,7 +293,7 @@ const SidePanel: React.FC = (setExType) => {
       : writeLayer(cloudLayer());
   }
 
-  function initUTCDate(inDate = null): Date {
+  /*function initUTCDate(inDate = null): Date {
     let d: Date;
     if (inDate === null) {
       d = new Date();
@@ -310,7 +310,7 @@ console.log("nearestDate resolved to:", res);
     }
     d.setUTCMinutes(0);
     return d;
-  }
+  }*/
 
   function updateMap(): void {
     setRefreshMarkers(true);
