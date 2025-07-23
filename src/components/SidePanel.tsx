@@ -299,15 +299,17 @@ const SidePanel: React.FC = (setExType) => {
       d = new Date();
       nearestDate(d)
         .then((res) => {
+          console.log("nearestDate resolved to:", res);
           d = new Date(res);
         })
         .catch((error) => {
-          console.error(error);
+          console.error("nearestDate error:", error);
         });
     } else {
       d = new Date(inDate);
     }
     d.setUTCMinutes(0);
+    console.log("initUTCDate returning:", d.toISOString());
     return d;
   }
 
