@@ -240,7 +240,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
     return true;
   }
-/*
+
   async function nearestDate(d, api_selected, failed = 0) {
     const [year, month, date] = [
       d.getFullYear(),
@@ -264,7 +264,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
     return [new Date(year, month - 1, date), failed];
   }
-*/
+
   function formatDateAndParse(num, markerReference) {
     if (!num) {
       num = "(130)";
