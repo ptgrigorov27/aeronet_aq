@@ -252,14 +252,15 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       `${api_selected}year=${year}&month=${month}&day=${date}`,
     );
 
-    console.log("nearest date resolved to :", nearestDate);
+    console.log("nearest date resolved to: ", response);
 
     if (response.data.includes("Error")) {
       d.setUTCDate(d.getUTCDate() - 1);
+      console.log("if response data includes error: ", d.toISOString());
       return nearestDate(d, failed + 1);
     }
 
-    console.log("nearest new date resolved to :", nearestDate);
+    console.log("initUTCDate returning: ", d.toISOString());
 
     return [new Date(year, month - 1, date), failed];
   }
