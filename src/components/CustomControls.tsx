@@ -24,11 +24,11 @@ const CustomControls: React.FC = () => {
       attributionControlRef.current = attributionControl;
     }
     if (!githubControlRef.current) {
-      const githubControl = L.control({ position: "bottomright" });
+      const githubControl = (L.control as any)({ position: "bottomright" });
       githubControl.onAdd = () => {
         const div = L.DomUtil.create("div", "github-link");
         div.innerHTML = `
-          <a href="https://github.com/rell/aeronet_aq" target="_blank" style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.7); padding: 5px; border-radius: 0px;">
+          <a href="https://github.com/ptgrigorov27/aeronet_aq" target="_blank" style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.7); padding: 5px; border-radius: 0px;">
             <img src="https://www.svgrepo.com/show/349616/sc-github.svg" alt="GitHub" style="width: auto; height: 20px; margin-right: 8px;">
             <strong>Repository</strong>
           </a>

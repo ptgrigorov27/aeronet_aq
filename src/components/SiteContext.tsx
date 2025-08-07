@@ -1,9 +1,3 @@
-import {
-  useCSVReader,
-  lightenDarkenColor,
-  formatFileSize,
-} from 'react-papaparse';
-
 import React, {
   createContext,
   useState,
@@ -11,8 +5,7 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import L from "leaflet";
-import API_BASE_URL from "https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?";
+//import API_BASE_URL from "https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?";
 import "../App.css"
 
 
@@ -42,8 +35,7 @@ interface Readings {
 
 interface SiteContextType {
   readings: Readings[];
-  refreshReadings: () => void;
-  //setFilters: (startDate: string, endDate: string) => void;
+  refreshSites: () => void;
 }
 
 const SiteContext = createContext<SiteContextType | undefined>(undefined);
@@ -53,21 +45,10 @@ interface SiteProviderProps {
 }
 
 export const SiteProvider: React.FC<SiteProviderProps> = ({ children }) => {
-  const [readings, setReadings] = useState<Readings[]>([]);
-  const [date, setDate] = useState<string>("");
+  const [readings] = useState<Readings[]>([]);
 
   const fetchSites = useCallback( () => {
     try {
-      //const params = new URLSearchParams();
-      ////if () params.append("year", startDate);
-      //
-      //console.log("hello")
-      ////const response = await fetch(
-      ////  `${API_BASE_URL}{params.toString()}`,
-      ////);
-      ////console.log(response)
-      ////const data: Site[] = await response.json();
-      ////setSites(data);
     } catch (error) {
       console.error("Error fetching sites:", error);
     }

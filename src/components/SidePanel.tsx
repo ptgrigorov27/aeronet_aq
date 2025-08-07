@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, Button, Modal } from "react-bootstrap";
 import { useMapContext } from "./MapContext";
 import SiteManager from "./forms/SiteManager";
@@ -9,8 +9,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import Box from "@mui/material/Box";
 import dayjs from "dayjs";
 import { setTextColor, setText, setColor } from "./Utils.tsx";
-import { API_ARNT, API_AQ, API_DEF } from "./../config";
-import * as d3 from "d3";
+import { API_DEF } from "./../config";
 import Chip from "@mui/material/Chip";
 import {
   OutlinedInput,
@@ -72,7 +71,7 @@ const SidePanel: React.FC = (setExType) => {
     "DoS Missions",
   ]);
   const timeArr = [130, 430, 730, 1030, 1330, 1630, 1930, 2230];
-  const [enabledMarkers, setEnabledMarkers] = useState({
+  const [enabledMarkers] = useState({
     "DoS Missions": true,
     AERONET: false,
     "Open AQ": false,
@@ -110,8 +109,9 @@ const SidePanel: React.FC = (setExType) => {
   }, []);
 
   useEffect(() => {
-    Object.keys(enabledMarkers).forEach((group: string) => {
-      enabledMarkers[group] = selectedGroup.includes(group);
+    Object.keys(enabledMarkers).forEach((group) => {
+      const key = group as keyof typeof enabledMarkers;
+      enabledMarkers[key] = selectedGroup.includes(group);
     });
 
     setRefreshMarkers(true);
@@ -129,9 +129,12 @@ const SidePanel: React.FC = (setExType) => {
   //NOTE: This updates the map on these values change
   useEffect(() => {
     setTimeout(() => {
-      const res = isCloudLayerVisible
-        ? deleteLayer(cloudLayer()) && writeLayer(cloudLayer())
-        : console.log();
+      if (isCloudLayerVisible) {
+        deleteLayer(cloudLayer());
+        writeLayer(cloudLayer());
+      } else {
+        console.log();
+      }
     }, 500);
   }, [apiDate, innerDate]);
 
@@ -169,7 +172,7 @@ const SidePanel: React.FC = (setExType) => {
     return `${d.getFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
   }
 
-  function baseLayer(): L.layerGroup {
+  /*function baseLayer(): L.LayerGroup {
     const basemapLayer = L.tileLayer.wms(
       "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
       {
@@ -196,9 +199,9 @@ const SidePanel: React.FC = (setExType) => {
     );
 
     return L.layerGroup([basemapLayer, labelsLayer]);
-  }
+  }*/
 
-  function cloudLayer(): L.layerGroup {
+  function cloudLayer(): L.LayerGroup {
     const wmsLayer = L.tileLayer.wms(nonbaseMaps[0], {
       layers: "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
       crs: L.CRS.EPSG4326,
@@ -209,7 +212,7 @@ const SidePanel: React.FC = (setExType) => {
       transparent: true,
       attribution: "",
       noWrap: true,
-    });
+    } as any);
 
     const labelsLayer = L.tileLayer(nonbaseMaps[1], {
       zIndex: 1000,
@@ -262,7 +265,7 @@ const SidePanel: React.FC = (setExType) => {
     return nearestValue;
   }
 
-  function writeLayer(layer: L.layerGroup): boolean {
+  function writeLayer(layer: L.LayerGroup): boolean {
     try {
       map?.addLayer(layer);
       return true;
@@ -272,11 +275,13 @@ const SidePanel: React.FC = (setExType) => {
     }
   }
 
-  function deleteLayer(layers: L.layerGroup): boolean {
+  function deleteLayer(layers: L.LayerGroup): boolean {
     try {
       map?.eachLayer((layer: L.Layer) => {
-        if (layer._url === nonbaseMaps[0] || layer._url === nonbaseMaps[1]) {
-          map.removeLayer(layer);
+        if (layer instanceof L.TileLayer.WMS) {
+          if ((layer as any)._url === nonbaseMaps[0] || (layer as any)._url === nonbaseMaps[1]) {
+            map.removeLayer(layer);
+          }
         }
       });
       return true;
@@ -311,12 +316,12 @@ const SidePanel: React.FC = (setExType) => {
     return d;
   }
 
-  function updateMap(): void {
+  /*function updateMap(): void {
     setRefreshMarkers(true);
     setTimeout(() => {
       setRefreshMarkers(false);
     }, 100);
-  }
+  }*/
 
   function handleZoomChange(event: React.ChangeEvent<HTMLInputElement>): void {
     const zoom = Number.parseInt(event.target.value, 10);
