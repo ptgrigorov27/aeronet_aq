@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Box } from "@mui/material";
 
-const ColorLegend: React.FC<ColorLegendProps> = (type) => {
+interface ColorLegendProps {
+  type: string;
+}
+
+const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
   const [scrnWidth, setScrnWidth] = useState(5000);
   useEffect(() => {
     const handleResize = () => {
@@ -15,7 +19,7 @@ const ColorLegend: React.FC<ColorLegendProps> = (type) => {
   }, []);
   return (
     <>
-      {type["type"].includes("AQ") && scrnWidth > 575 && (
+      {type.includes("AQ") && scrnWidth > 575 && (
         <Box
           sx={{
             position: "absolute",
@@ -127,7 +131,7 @@ const ColorLegend: React.FC<ColorLegendProps> = (type) => {
           </div>
         </Box>
       )}
-      {type["type"].includes("AQ") && scrnWidth <= 575 && (
+      {type.includes("AQ") && scrnWidth <= 575 && (
         <Box
           sx={{
             position: "absolute",
@@ -290,7 +294,7 @@ const ColorLegend: React.FC<ColorLegendProps> = (type) => {
         </Box>
       )}
 
-      {type["type"] == "PM" && (
+      {type == "PM" && (
         <Box
           sx={{
             position: "absolute",

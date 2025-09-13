@@ -1,12 +1,63 @@
 import React, { useEffect, useState } from "react";
 import { useMapContext } from "../MapContext";
 import L from "leaflet";
-import * as d3 from "d3";
 import "leaflet-svg-shape-markers";
 import { API_ARNT, API_AQ, API_DEF } from "../../config";
 import axios from "axios";
-import styles from "./Map.module.css";
 import { setTextColor, setText, setColor } from "../Utils";
+
+/**
+ * Props expected by SiteManager
+ */
+interface SiteManagerProps {
+  /** Callback to set the initialized date in parent */
+  exInit: (d: Date) => void;
+  /** API date string passed from parent */
+  apiDate: string;
+  /** Forecast type (e.g., AQI, PM, DAILY_AQI) */
+  type: string;
+  /** Show/hide chart modal */
+  setShowChart: React.Dispatch<React.SetStateAction<boolean>>;
+  /** Update chart data in parent */
+  setChartData: React.Dispatch<React.SetStateAction<any[]>>;
+  /** Selected forecast time (e.g., (130), (430)) */
+  time: string;
+  /** Site name for chart modal */
+  setClickedSite: React.Dispatch<React.SetStateAction<string>>;
+  /** Which forecast layers are enabled */
+  enabledMarkers: {
+    "DoS Missions": boolean;
+    AERONET: boolean;
+    "Open AQ": boolean;
+  };
+  /** Current zoom level */
+  zoom: number;
+  /** Status message handler */
+  setResponse: React.Dispatch<React.SetStateAction<string>>;
+  /** Index of initialized date */
+  fromInit: number;
+  /** Setter for initialized date index */
+  setFromInit: React.Dispatch<React.SetStateAction<number>>;
+  /** Setter for available date selections */
+  setSelectArr: React.Dispatch<React.SetStateAction<string[]>>;
+  /** Size of circle markers */
+  markerSize: number;
+  /** Flag for refreshing markers */
+  refreshMarkers: boolean;
+  /** Setter for refreshMarkers flag */
+  setRefreshMarkers: React.Dispatch<React.SetStateAction<boolean>>;
+  /** Flag for zoom change */
+  zoomChange: boolean;
+}
+
+// Types for readings and coordinates
+type ReadingRecord = { [key: string]: any };
+type CoordRecord = {
+  [key: string]: {
+    Latitude: number;
+    Longitude: number;
+  };
+};
 
 const SiteManager: React.FC<SiteManagerProps> = ({
   exInit,
@@ -26,57 +77,74 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   refreshMarkers,
   setRefreshMarkers,
   zoomChange,
-  setZoomChange,
 }) => {
   const { map } = useMapContext();
-  const [readings, setReadingsDEF] = useState<Array<{ [key: string]: string }>>(
-    [],
-  );
-  const [coordArr, setCoordArr] = useState<Array<string>>([]);
-  const [initDate, setInitDate] = useState<string>("");
-  const api_urls = {
+
+  // All site readings keyed by sitename
+  const [readings, setReadingsDEF] = useState<{ [key: string]: ReadingRecord[] }>({});
+  // Coordinate lookup by sitename
+  const [coordArr, setCoordArr] = useState<CoordRecord>({});
+  // Currently initialized date
+  const [initDate, setInitDate] = useState<Date | null>(null);
+
+  // API endpoints for different forecast sources
+  const api_urls: { [key: string]: string } = {
     "DoS Missions": API_DEF,
     AERONET: API_ARNT,
     "Open AQ": API_AQ,
   };
 
+  /**
+   * Update marker radius when zoom changes
+   */
   useEffect(() => {
     if (zoom) {
       updateMarkerSize(markerSize);
     }
   }, [zoom, map]);
 
+  /**
+   * Refresh markers when zoom changes
+   */
   useEffect(() => {
     clearMarkers();
-    fetchMarkers(apiDate, 0);
-  }, zoomChange);
+    fetchMarkers(apiDate, "0");
+  }, [zoomChange]);
 
+  /**
+   * Refresh markers when refresh flag is set
+   */
   useEffect(() => {
     if (refreshMarkers) {
       clearMarkers();
       fetchReadings(apiDate, 0);
       fetchMarkers(type, time);
     }
-
     setRefreshMarkers(false);
   }, [refreshMarkers]);
 
+  /**
+   * Update markers whenever readings/type/time change
+   */
   useEffect(() => {
     clearMarkers();
     fetchMarkers(type, time);
   }, [readings, type, time, fromInit]);
 
+  /**
+   * Fetch new readings when API date or enabled markers change
+   */
   useEffect(() => {
     fetchReadings(apiDate, 0);
   }, [apiDate, enabledMarkers]);
+
+  // ----------------- Helper Functions -----------------
 
   const updateMarkerSize = (size: number) => {
     if (map) {
       map.eachLayer((layer: L.Layer) => {
         if (layer instanceof L.CircleMarker) {
-          layer.setStyle({
-            radius: size,
-          });
+          layer.setStyle({ radius: size });
         }
       });
     }
@@ -85,10 +153,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   function clearMarkers() {
     if (map) {
       map.eachLayer((layer: L.Layer) => {
-        if (
-          layer instanceof L.CircleMarker ||
-          layer instanceof L.FeatureGroup
-        ) {
+        if (layer instanceof L.CircleMarker || layer instanceof L.FeatureGroup) {
           map.removeLayer(layer);
         }
       });
@@ -97,28 +162,21 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
   function csvToJSON(csv: string) {
     const lines = csv.split("\n");
-    const result = [];
+    const result: any[] = [];
     const headers = lines[0].split(",");
 
     try {
       for (let i = 1; i < lines.length; i++) {
-        const obj = {};
-        if (lines[i] == undefined) {
-          console.log(`${i} is undefined`);
-          continue;
-        } else if (lines[i].trim() == undefined || lines[i].trim() == "") {
-          continue;
-        }
-
+        if (!lines[i] || lines[i].trim() === "") continue;
+        const obj: any = {};
         const words = lines[i].split(",");
         for (let j = 0; j < words.length; j++) {
           obj[headers[j].trim()] = words[j];
         }
-
         result.push(obj);
       }
     } catch (err) {
-      console.log(err);
+      console.error(err);
     }
     return result;
   }
@@ -126,86 +184,49 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   function setSelection(d: Date) {
     const d2 = new Date(d);
     d2.setUTCDate(d.getUTCDate() + 1);
-
     const d3 = new Date(d2);
     d3.setUTCDate(d2.getUTCDate() + 1);
 
-    const d4 = new Date(d3);
-    d4.setUTCDate(d3.getUTCDate() + 1);
-
-    const [year1, month1, date1] = [
-      d.getUTCFullYear(),
-      d.getUTCMonth() + 1,
-      d.getUTCDate(),
-    ];
-
-    const [year2, month2, date2] = [
-      d2.getUTCFullYear(),
-      d2.getUTCMonth() + 1,
-      d2.getUTCDate(),
-    ];
-
-    const [year3, month3, date3] = [
-      d3.getUTCFullYear(),
-      d3.getUTCMonth() + 1,
-      d3.getUTCDate(),
-    ];
-    return [
-      `${month1.toString().padStart(2, "0")}/${date1.toString().padStart(2, "0")}/${year1}`,
-      `${month2.toString().padStart(2, "0")}/${date2.toString().padStart(2, "0")}/${year2}`,
-      `${month3.toString().padStart(2, "0")}/${date3.toString().padStart(2, "0")}/${year3}`,
-    ];
+    return [d, d2, d3].map(
+      (date) =>
+        `${(date.getUTCMonth() + 1).toString().padStart(2, "0")}/${date
+          .getUTCDate()
+          .toString()
+          .padStart(2, "0")}/${date.getUTCFullYear()}`,
+    );
   }
 
-  async function fetchReadings(
-    sAPI?: string,
-    failed?: number,
-  ): Promise<boolean> {
-    const readingResult = {};
+  async function fetchReadings(sAPI?: string, failed: number = 0): Promise<boolean> {
+    const readingResult: { [key: string]: ReadingRecord[] } = {};
     let d = new Date();
-    const coordResult = {};
+    const coordResult: CoordRecord = {};
+
     try {
-      [d, failed] = await nearestDate(d, API_DEF);
+      [d, failed] = await nearestDate(d, API_DEF, failed);
 
       for (const key in enabledMarkers) {
-        if (enabledMarkers[key]) {
+        const typedKey = key as keyof typeof enabledMarkers;
+        if (enabledMarkers[typedKey]) {
           const api_selected = api_urls[key];
           setResponse("Fetch in progress...");
-          if (sAPI) {
-            d = new Date(sAPI);
-          }
-
-          // INFO: Deconstruct return to check range limit and capture date returned
+          if (sAPI) d = new Date(sAPI);
 
           if (failed > 2) {
             setResponse("Date not found in API.");
             return true;
           }
 
-          const [year, month, date] = [
-            d.getUTCFullYear(),
-            d.getUTCMonth() + 1,
-            d.getUTCDate(),
-          ];
-
-          const response = await axios.get(
-            `${api_selected}year=${year}&month=${month}&day=${date}`,
-          );
+          const [year, month, date] = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
+          const response = await axios.get(`${api_selected}year=${year}&month=${month}&day=${date}`);
 
           const csvBase = document.createElement("html");
           csvBase.innerHTML = response.data;
-          const locationData = csvBase.textContent
-            ?.split("\n")
-            .slice(2)
-            .join("\n");
-          const data = csvToJSON(locationData);
-          // const location_file = await fetch("/src/out.csv").then(
-          const location_file = await fetch("/new_web/aqforecast/out.csv").then(
-            (response) => response.text(),
-          );
+          const locationData = csvBase.textContent?.split("\n").slice(2).join("\n");
+          const data = csvToJSON(locationData || "");
 
+          const location_file = await fetch("/new_web/aqforecast/out.csv").then((res) => res.text());
           const data2 = csvToJSON(location_file);
-          data2.forEach((obj) => {
+          data2.forEach((obj: any) => {
             const siteName = obj.sitename.toLowerCase();
             coordResult[siteName] = {
               Latitude: parseFloat(obj.Latitude),
@@ -215,15 +236,14 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
           setSelectArr(setSelection(d));
 
-          data.forEach((obj) => {
+          data.forEach((obj: any) => {
             const siteName = obj.Site_Name.toLowerCase();
-            if (!readingResult[siteName]) {
-              readingResult[siteName] = [];
-            }
+            if (!readingResult[siteName]) readingResult[siteName] = [];
             readingResult[siteName].push(obj);
           });
         }
       }
+
       setResponse("");
       setCoordArr(coordResult);
       setReadingsDEF(readingResult);
@@ -237,54 +257,35 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       setSelectArr(["", "", ""]);
       return false;
     }
-
     return true;
   }
 
-  async function nearestDate(d, api_selected, failed = 0) {
-    const [year, month, date] = [
-      d.getFullYear(),
-      d.getMonth() + 1,
-      d.getDate(),
-    ];
-
-    const response = await axios.get(
-      `${api_selected}year=${year}&month=${month}&day=${date}`,
-    );
+  async function nearestDate(d: Date, api_selected: string, failed = 0): Promise<[Date, number]> {
+    const [year, month, date] = [d.getFullYear(), d.getMonth() + 1, d.getDate()];
+    const response = await axios.get(`${api_selected}year=${year}&month=${month}&day=${date}`);
 
     if (response.data.includes("Error")) {
       d.setUTCDate(d.getUTCDate() - 1);
-      return nearestDate(d, failed + 1);
+      return nearestDate(d, api_selected, failed + 1);
     }
-
     return [new Date(year, month - 1, date), failed];
   }
 
-  function formatDateAndParse(num, markerReference) {
-    if (!num) {
-      num = "(130)";
-    }
+  function formatDateAndParse(num: string, markerReference: any) {
+    if (!num) num = "(130)";
     const dateStr = markerReference["UTC_DATE"];
     const [year, month, day] = dateStr.split("-");
     const date = new Date(year, month - 1, day);
-    const dayOptions = { weekday: "short" };
-    const monthOptions = { month: "short" };
-    const dateOptions = { day: "numeric" };
-    const yearOptions = { year: "numeric" };
-    const formattedDay = date.toLocaleDateString("en-US", dayOptions);
-    const formattedMonth = date.toLocaleDateString("en-US", monthOptions);
-    const formattedDate = date.toLocaleDateString("en-US", dateOptions);
-    const formattedYear = date.toLocaleDateString("en-US", yearOptions);
-    const formattedDateStr = `${formattedDay} ${formattedMonth} ${formattedDate} ${formattedYear}`;
+    const formattedDateStr = date.toDateString();
     const numString = num.replace(/[()]/g, "").toString().padStart(4, "0");
     const firstTwo = numString.slice(0, 2);
     const lastTwo = numString.slice(2, 4);
-    const formattedNum = `${firstTwo}:${lastTwo}`;
-    const finalFormattedString = `${formattedDateStr} ${formattedNum} UTC`;
-    return finalFormattedString;
+    return `${formattedDateStr} ${firstTwo}:${lastTwo} UTC`;
   }
-  const createChartData = (reading) => {
-    const chartData = [{}, {}, {}];
+
+  const createChartData = (reading: any[]) => {
+    const chartData: any[] = [{}, {}, {}];
+    if (!initDate) return chartData;
     const d = new Date(initDate);
 
     for (let day = 0; day < 3; day++) {
@@ -296,32 +297,27 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   };
 
   const fetchMarkers = (type: string, time: string) => {
-    let rKey;
+    let rKey: string | undefined;
 
     if (readings) {
       try {
         for (const site in coordArr) {
           if (Object.keys(readings).includes(site)) {
             if (type !== "DAILY_AQI") {
-              rKey = Object.keys(readings[site][fromInit]).find(
-                (x) => x.includes(`${type}`) && x.includes(`${time}`),
-              );
+              rKey = Object.keys(readings[site][fromInit]).find((x) => x.includes(type) && x.includes(time));
             } else {
-              rKey = Object.keys(readings[site][fromInit]).find((x) =>
-                x.includes(`${type}`),
-              );
+              rKey = Object.keys(readings[site][fromInit]).find((x) => x.includes(type));
             }
+
+            if (!rKey) continue;
             const value = type.includes("AQI")
               ? parseInt(readings[site][fromInit][rKey])
               : parseFloat(readings[site][fromInit][rKey]);
 
-            const markerColor = setColor(
-              parseFloat(readings[site][fromInit][rKey]),
-              "outter",
-            );
+            const markerColor = setColor(value, "outter")?.toString() || "grey";
 
             const markerReference = readings[site][fromInit];
-            const markerType = {
+            const markerType: { [key: string]: string } = {
               PM: "PM 2.5",
               DAILY_AQI: "DAILY AQI",
               AQI: "AQI",
@@ -329,60 +325,40 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             const siteName: string = site
               .replace("__", "_")
               .split("_")
-              .map((words) => {
-                return words.charAt(0).toUpperCase() + words.slice(1);
-              })
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
               .join(" ");
-            const pmKey = Object.keys(readings[site][fromInit]).find(
-              (x) => x.includes("PM") && x.includes(`${time}`),
-            );
-            const pm = readings[site][fromInit][pmKey];
-            const marker = L.circleMarker(
-              [coordArr[site].Latitude, coordArr[site].Longitude],
-              {
-                fillColor: markerColor,
-                color: "white",
-                radius: markerSize,
-                fillOpacity: 1,
-                opacity: 1,
-                weight: 2,
-                stroke: true,
-                setFillOpacity: 1,
-                interactive: true,
-                value: value,
-                site: site,
-                closeButton: false,
-                type: markerType[type],
-                originalColor: markerColor,
-                previousSize: markerSize,
-              },
-            ).addTo(map);
 
-            const customOpts = {
-              className: "custom-popup",
-              closeButton: false,
-            };
+            const pmKey = Object.keys(readings[site][fromInit]).find((x) => x.includes("PM") && x.includes(time));
+            const pm = pmKey ? readings[site][fromInit][pmKey] : "0";
+
+            const marker = L.circleMarker([coordArr[site].Latitude, coordArr[site].Longitude], {
+              fillColor: markerColor,
+              color: "white",
+              radius: markerSize,
+              fillOpacity: 1,
+              opacity: 1,
+              weight: 2,
+              stroke: true,
+            } as any).addTo(map!);
 
             marker.on("mouseover", () => {
               marker
                 .bindPopup(
-                  `<div style="background-color: ${markerColor}; width:max-content; max-width: 500px; color: ${setTextColor(value)}; border-radius: 8px; padding: 20px; margin: 0;">
-                      <div>
-                          <b>Site Name:</b> ${siteName}<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          <span style="float: right;"><b>Station:</b> ${markerReference["Station"]}</span>
+                  `<div style="background-color: ${markerColor}; color: ${setTextColor(value)}; border-radius: 8px; padding: 20px;">
+                      <div><b>Site Name:</b> ${siteName}
+                        <span style="float: right;"><b>Station:</b> ${markerReference["Station"]}</span>
                       </div>
                       <div>
-                          <span style="font-size: 20px;"><b>${marker.options.type}:</b> 
-                              ${type.includes("AQI") ? `${marker.options.value}` : `${marker.options.value.toFixed(4)} µgm<sup>-3</sup>`}
-                          </span> <span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          <span style="float: right; font-size: 20px;"><b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup></span>
+                        <span style="font-size: 20px;"><b>${markerType[type]}:</b> ${value}</span>
+                        <span style="float: right; font-size: 20px;">
+                          <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
+                        </span>
                       </div>
                       <div>
-                          <b>${setText(value)}</b> <span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          <span style="float: right;">${formatDateAndParse(time, markerReference)}</span>
+                        <b>${setText(value)}</b>
+                        <span style="float: right;">${formatDateAndParse(time, markerReference)}</span>
                       </div>
                   </div>`,
-                  customOpts,
                 )
                 .openPopup();
             });
@@ -391,19 +367,18 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               setClickedSite(`${siteName} | 3-Day Forecast`);
               const chartData = createChartData(readings[site]);
               setChartData(chartData);
-              setTimeout(() => {
-                setShowChart(true);
-              }, 500);
+              setTimeout(() => setShowChart(true), 500);
             });
           }
         }
       } catch (e) {
-        console.error("The following error occured in fetchReadings();");
-        console.log(e);
-        console.log(readings);
+        console.error("The following error occurred in fetchMarkers():", e);
         setResponse("API returned: No data available.");
       }
     }
   };
+
+  return null;
 };
+
 export default SiteManager;

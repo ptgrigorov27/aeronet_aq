@@ -6,6 +6,7 @@ import { SiteProvider } from "./components/SiteContext";
 import SidePanel from "./components/SidePanel";
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+
 import "./App.css";
 
 function App() {
@@ -16,8 +17,8 @@ function App() {
       <MapProvider>
         <div className="App" style={{ display: "flex" }}>
           <MapComponent center={[0,0]} zoom={3} type={exType} />
-          <SidePanel setExType={ (t)=> setExType(t) } />
-        </div>
+          <SidePanel setExType={(t: string) => setExType(t)} />
+          </div>
       </MapProvider>
     </SiteProvider>
   </LocalizationProvider>
