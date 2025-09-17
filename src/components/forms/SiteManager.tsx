@@ -209,7 +209,12 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         if (enabledMarkers[typedKey]) {
           const api_selected = api_urls[key];
           setResponse("Fetch in progress...");
-          if (sAPI) d = new Date(sAPI);
+          // if (sAPI) d = new Date(sAPI);
+          if (sAPI) {
+            d = new Date(sAPI);
+          } else {
+            [d, failed] = await nearestDate(d, API_DEF, failed);
+          }
 
           if (failed > 2) {
             setResponse("Date not found in API.");
@@ -260,16 +265,50 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     return true;
   }
 
-  async function nearestDate(d: Date, api_selected: string, failed = 0): Promise<[Date, number]> {
-    const [year, month, date] = [d.getFullYear(), d.getMonth() + 1, d.getDate()];
-    const response = await axios.get(`${api_selected}year=${year}&month=${month}&day=${date}`);
+  // async function nearestDate(d: Date, api_selected: string, failed = 0): Promise<[Date, number]> {
+  //   const [year, month, date] = [d.getFullYear(), d.getMonth() + 1, d.getDate()];
+  //   const response = await axios.get(`${api_selected}year=${year}&month=${month}&day=${date}`);
 
-    if (response.data.includes("Error")) {
-      d.setUTCDate(d.getUTCDate() - 1);
-      return nearestDate(d, api_selected, failed + 1);
+  //   if (response.data.includes("Error")) {
+  //     d.setUTCDate(d.getUTCDate() - 1);
+  //     return nearestDate(d, api_selected, failed + 1);
+  //   }
+  //   return [new Date(year, month - 1, date), failed];
+  // }
+
+  async function nearestDate(
+    d: Date,
+    api_selected: string,
+    failed = 0
+  ): Promise<[Date, number]> {
+    const [year, month, date] = [
+      d.getUTCFullYear(),
+      d.getUTCMonth() + 1,
+      d.getUTCDate(),
+    ];
+  
+    try {
+      const response = await axios.get(
+        `${api_selected}year=${year}&month=${month}&day=${date}`
+      );
+  
+      // If API returns error → step back 1 day
+      if (response.data.includes("Error")) {
+        if (failed > 7) {
+          // safety stop after a week
+          throw new Error("No recent forecast data found.");
+        }
+        d.setUTCDate(d.getUTCDate() - 1);
+        return nearestDate(d, api_selected, failed + 1);
+      }
+  
+      return [d, failed];
+    } catch (err) {
+      console.error("nearestDate() failed:", err);
+      return [d, failed];
     }
-    return [new Date(year, month - 1, date), failed];
   }
+  
 
   function formatDateAndParse(num: string, markerReference: any) {
     if (!num) num = "(130)";

@@ -69,7 +69,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   const [chartOptions, setChartOptions] = useState({});
   const [ready, setReady] = useState<boolean>(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [fromInit, setFromInit] = useState<number>(0);
+  // const [fromInit, setFromInit] = useState<number>(0);
+  const [initDate, setInitDate] = useState<Date | null>(null);
   const [selectArr, setSelectArr] = useState<string[]>(["", "", ""]);
   const [zoomChange, setZoomChange] = useState<boolean>(false);
   const [selectedGroup, setSelectedGroup] = useState<string[]>([
@@ -162,7 +163,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   }, [showChart]);
 
   function getMapDate(): string {
-    const d = new Date(fromInit);
+    const d = initDate ? new Date(initDate) : new Date(); // fallback to current date
     d.setUTCDate(d.getUTCDate() + innerDate);
     return `${d.getFullYear()}-${String(d.getUTCMonth() + 1).padStart(
       2,
@@ -463,12 +464,16 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
               <>
                 <DatePicker
                   maxDate={dayjs(initUTCDate())}
-                  value={dayjs(fromInit)}
+                  value={initDate ? dayjs(initDate) : null}
                   onChange={(date: Dayjs | null) => {
-                    if (date) setApiDate(date.toISOString());
+                    if (date) {
+                      setApiDate(date.toISOString());
+                      setInitDate(date.toDate());
+                    }
                   }}
                   label="Model Initialization"
                 />
+
                 <Box className="mt-2" sx={{ minWidth: 120 }}>
                   <FormControl fullWidth>
                     <InputLabel>Forecast Date</InputLabel>
@@ -564,7 +569,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           setSelectArr={setSelectArr}
           setFromInit={setInnerDate}
           apiDate={apiDate}
-          exInit={(d: Date) => setFromInit(d.getTime())}
+          // exInit={(d: Date) => setFromInit(d.getTime())}
+          exInit={(d: Date) => setInitDate(d)}
           setChartData={setChartData}
           setClickedSite={setClickedSite}
           setShowChart={setShowChart}
