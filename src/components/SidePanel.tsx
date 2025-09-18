@@ -139,7 +139,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     setMarkerSize((zoomLevel + 2) * (Math.E - 1));
     setZoomChange(true);
   }, [zoomLevel]);
-
+  // comment
   useEffect(() => {
     if (!map) return undefined; // ✅ explicitly return undefined
 
