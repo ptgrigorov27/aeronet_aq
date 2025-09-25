@@ -14,7 +14,6 @@ import { API_DEF } from "./../config";
 import Chip from "@mui/material/Chip";
 import type { ChartData } from "chart.js";
 
-
 import {
   OutlinedInput,
   InputLabel,
@@ -34,6 +33,7 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import ChartDataLabels from "chartjs-plugin-datalabels";
+
 interface SidePanelProps {
   setExType: (t: string) => void;
 }
@@ -69,12 +69,15 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   const [chartOptions, setChartOptions] = useState({});
   const [ready, setReady] = useState<boolean>(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [fromInit, setFromInit] = useState<number>(0);
+  // const [fromInit] = useState<number>(0);
   const [selectArr, setSelectArr] = useState<string[]>(["", "", ""]);
   const [zoomChange, setZoomChange] = useState<boolean>(false);
   const [selectedGroup, setSelectedGroup] = useState<string[]>([
     "DoS Missions",
   ]);
+  // const [initDate, setInitDate] = useState<Date | null>(null);
+  const [fromInit, setFromInit] = useState<number>(0);
+
 
   const timeArr = [130, 430, 730, 1030, 1330, 1630, 1930, 2230];
   const [enabledMarkers] = useState({
@@ -103,6 +106,76 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
   const [scrnWidth, setScrnWidth] = useState(600);
 
+  // ---------- HELPERS MOVED UP (so no TS errors) ----------
+  function genLabels(readings: any[]): string[] {
+    const labels: string[] = [];
+    for (const date in readings) {
+      const d = new Date(Object.keys(readings[date])[0]);
+      labels.push(
+        d.toLocaleString("en-US", {
+          weekday: "short",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+          hour12: false,
+        })
+      );
+    }
+    return labels;
+  }
+
+  function buildChart(cData: any[]): ChartData<"bar"> {
+    const labels = genLabels(cData);
+    const [ds1] = cData[0] ? Array.from(Object.values(cData[0])) : [];
+    const [ds2] = cData[1] ? Array.from(Object.values(cData[1])) : [];
+    const [ds3] = cData[2] ? Array.from(Object.values(cData[2])) : [];
+
+    const n1 = Number(ds1);
+    const n2 = Number(ds2);
+    const n3 = Number(ds3);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: setText(n1),
+          data: [n1, null, null],
+          borderColor: setColor(n1, "outter")?.toString() || "grey",
+          backgroundColor: setColor(n1, "outter")?.toString() || "grey",
+          datalabels: { color: setTextColor(n1) },
+        },
+        {
+          label: setText(n2),
+          data: [null, n2, null],
+          borderColor: setColor(n2, "outter")?.toString() || "grey",
+          backgroundColor: setColor(n2, "outter")?.toString() || "grey",
+          datalabels: { color: setTextColor(n2) },
+        },
+        {
+          label: setText(n3),
+          data: [null, null, n3],
+          borderColor: setColor(n3, "outter")?.toString() || "grey",
+          backgroundColor: setColor(n3, "outter")?.toString() || "grey",
+          datalabels: { color: setTextColor(n3) },
+        },
+      ],
+    };
+  }
+
+  function genChartOptions(): object {
+    return {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          font: { size: scrnWidth > 575 ? "80%" : "50%" },
+        },
+      },
+    };
+  }
+  // ---------------------------------------------------------
+
   useEffect(() => {
     const handleResize = () => setScrnWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
@@ -117,12 +190,31 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     setRefreshMarkers(true);
   }, [selectedGroup]);
 
+  // useEffect(() => {
+  //   setTimeout(() => {
+  //     setApiDate(new Date().toISOString());
+  //     setType("AQI");
+  //     nearestTime(new Date().toISOString());
+  //   }, 500);
+  // }, [map]);
   useEffect(() => {
-    setTimeout(() => {
-      setApiDate(new Date().toISOString());
-      setType("AQI");
-      nearestTime(new Date().toISOString());
-    }, 500);
+    const today = new Date();
+    // Set something immediately so UI renders
+    setApiDate(today.toISOString());
+    setType("AQI");
+    nearestTime(today.toISOString());
+
+    // Now async update if today is invalid
+    const init = async () => {
+      try {
+        const nearest = await nearestDate(today);
+        setApiDate(nearest.toISOString()); // overwrite with nearest valid
+        nearestTime(nearest.toISOString());
+      } catch (err) {
+        console.error("nearestDate failed:", err);
+      }
+    };
+    init();
   }, [map]);
 
   useEffect(() => {
@@ -140,12 +232,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   }, [zoomLevel]);
 
   useEffect(() => {
-    if (!map) return undefined; // ✅ explicitly return undefined
-
+    if (!map) return undefined;
     const onZoom = () => setZoomLevel(map.getZoom());
-
     map.on("zoomend", onZoom);
-
     return () => {
       map.off("zoomend", onZoom);
     };
@@ -159,7 +248,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         setReady(true);
       }, 500);
     }
-  }, [showChart]);
+  }, [showChart, chartData]);
 
   function getMapDate(): string {
     const d = new Date(fromInit);
@@ -267,17 +356,17 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       : writeLayer(cloudLayer());
   }
 
-  function initUTCDate(inDate: Date | null = null): Date {
-    let d: Date;
-    if (!inDate) {
-      d = new Date();
-      nearestDate(d).catch(console.error);
-    } else {
-      d = new Date(inDate);
-    }
-    d.setUTCMinutes(0);
-    return d;
-  }
+  // function _initUTCDate(inDate: Date | null = null): Date {
+  //   let d: Date;
+  //   if (!inDate) {
+  //     d = new Date();
+  //     nearestDate(d).catch(console.error);
+  //   } else {
+  //     d = new Date(inDate);
+  //   }
+  //   d.setUTCMinutes(0);
+  //   return d;
+  // }
 
   function handleZoomChange(event: React.ChangeEvent<HTMLInputElement>): void {
     const zoom = Number.parseInt(event.target.value, 10);
@@ -295,79 +384,11 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   function handleTimeSelect(value: string): void {
     setTime(value);
   }
+
   function handleTypeSelect(event: SelectChangeEvent): void {
     const newType = event.target.value;
     setType(newType);
     setExType(newType);
-  }
-  
-
-  function genLabels(readings: any[]): string[] {
-    const labels: string[] = [];
-    for (const date in readings) {
-      const d = new Date(Object.keys(readings[date])[0]);
-      labels.push(
-        d.toLocaleString("en-US", {
-          weekday: "short",
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          timeZone: "UTC",
-          hour12: false,
-        })
-      );
-    }
-    return labels;
-  }
-
-  function buildChart(cData: any[]): ChartData<"bar"> {
-    const labels = genLabels(cData);
-    const [ds1] = cData[0] ? Array.from(Object.values(cData[0])) : [];
-    const [ds2] = cData[1] ? Array.from(Object.values(cData[1])) : [];
-    const [ds3] = cData[2] ? Array.from(Object.values(cData[2])) : [];
-
-    const n1 = Number(ds1);
-    const n2 = Number(ds2);
-    const n3 = Number(ds3);
-
-    return {
-      labels,
-      datasets: [
-        {
-          label: setText(n1),
-          data: [n1, null, null],
-          borderColor: setColor(n1, "outter")?.toString() || "grey",
-          backgroundColor: setColor(n1, "outter")?.toString() || "grey",
-          datalabels: { color: setTextColor(n1) },
-        },
-        {
-          label: setText(n2),
-          data: [null, n2, null],
-          borderColor: setColor(n2, "outter")?.toString() || "grey",
-          backgroundColor: setColor(n2, "outter")?.toString() || "grey",
-          datalabels: { color: setTextColor(n2) },
-        },
-        {
-          label: setText(n3),
-          data: [null, null, n3],
-          borderColor: setColor(n3, "outter")?.toString() || "grey",
-          backgroundColor: setColor(n3, "outter")?.toString() || "grey",
-          datalabels: { color: setTextColor(n3) },
-        },
-      ],
-    };
-  }
-
-  function genChartOptions(): object {
-    return {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        datalabels: {
-          font: { size: scrnWidth > 575 ? "80%" : "50%" },
-        },
-      },
-    };
   }
 
   function toggleCollapse(): void {
@@ -462,13 +483,14 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
             {apiDate && (
               <>
                 <DatePicker
-                  maxDate={dayjs(initUTCDate())}
-                  value={dayjs(fromInit)}
+                  maxDate={dayjs(new Date())}
+                  value={apiDate ? dayjs(apiDate) : null}
                   onChange={(date: Dayjs | null) => {
                     if (date) setApiDate(date.toISOString());
                   }}
                   label="Model Initialization"
                 />
+
                 <Box className="mt-2" sx={{ minWidth: 120 }}>
                   <FormControl fullWidth>
                     <InputLabel>Forecast Date</InputLabel>
@@ -564,7 +586,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           setSelectArr={setSelectArr}
           setFromInit={setInnerDate}
           apiDate={apiDate}
-          exInit={(d: Date) => setFromInit(d.getTime())}
+          exInit={(d: Date) => setFromInit(d.getTime())} 
           setChartData={setChartData}
           setClickedSite={setClickedSite}
           setShowChart={setShowChart}
@@ -577,7 +599,6 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           refreshMarkers={refreshMarkers}
           setRefreshMarkers={setRefreshMarkers}
           zoomChange={zoomChange}
-          //setZoomChange={setZoomChange}
         />
       </Card>
 
