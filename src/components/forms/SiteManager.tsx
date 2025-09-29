@@ -199,8 +199,14 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           const response = await axios.get(
             `${api_selected}year=${year}&month=${month}&day=${date}`
           );
-          console.log("API request URL:", `${api_selected}year=${year}&month=${month}&day=${date}`);
-          console.log("API response data (first 500 chars):", response.data.substring(0, 500));
+          console.log(
+            "API request URL:",
+            `${api_selected}year=${year}&month=${month}&day=${date}`
+          );
+          console.log(
+            "API response data (first 500 chars):",
+            response.data.substring(0, 500)
+          );
           const csvBase = document.createElement("html");
           csvBase.innerHTML = response.data;
           const locationData = csvBase.textContent
@@ -209,10 +215,27 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             .join("\n");
           const data = csvToJSON(locationData || "");
 
-          const location_file = await fetch("/new_web/aqforecast/out.csv").then(
-            (res) => res.text()
+          // const location_file = await fetch("/new_web/aqforecast/out.csv").then(
+          //   (res) => res.text()
+          // );
+          // const data2 = csvToJSON(location_file);
+          const location_file = await fetch("/new_web/aqforecast/out.csv")
+            .then((response) => {
+              console.log("out.csv fetch response:", response); // ✅ shows status, URL, etc.
+              return response.text();
+            })
+            .catch((err) => {
+              console.error("Error fetching out.csv:", err);
+              return "";
+            });
+
+          console.log(
+            "out.csv content (first 500 chars):",
+            location_file.slice(0, 500)
           );
+
           const data2 = csvToJSON(location_file);
+
           data2.forEach((obj: any) => {
             if (obj.sitename) {
               const siteName = obj.sitename.toLowerCase();
@@ -286,7 +309,10 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       const response = await axios.get(
         `${api_selected}year=${year}&month=${month}&day=${date}`
       );
-      console.log("API request URL:", `${api_selected}year=${year}&month=${month}&day=${date}`);
+      console.log(
+        "API request URL:",
+        `${api_selected}year=${year}&month=${month}&day=${date}`
+      );
       console.log("API raw response:", response);
       if (response.data.includes("Error")) {
         if (failed > 7) throw new Error("No recent forecast data found.");
@@ -300,7 +326,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       return [d, failed];
     }
   }
-  
 
   // fetchMarkers (unchanged, only uses fromInit timestamp correctly)
   const fetchMarkers = (type: string, time: string) => {
