@@ -199,7 +199,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           const response = await axios.get(
             `${api_selected}year=${year}&month=${month}&day=${date}`
           );
-
+          console.log("API request URL:", `${api_selected}year=${year}&month=${month}&day=${date}`);
+          console.log("API response data (first 500 chars):", response.data.substring(0, 500));
           const csvBase = document.createElement("html");
           csvBase.innerHTML = response.data;
           const locationData = csvBase.textContent
@@ -285,6 +286,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       const response = await axios.get(
         `${api_selected}year=${year}&month=${month}&day=${date}`
       );
+      console.log("API request URL:", `${api_selected}year=${year}&month=${month}&day=${date}`);
+      console.log("API raw response:", response);
       if (response.data.includes("Error")) {
         if (failed > 7) throw new Error("No recent forecast data found.");
         d.setUTCDate(d.getUTCDate() - 1);
