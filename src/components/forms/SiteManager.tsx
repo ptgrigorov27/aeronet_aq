@@ -171,7 +171,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
     try {
       [d, failed] = await nearestDate(d, API_DEF, failed);
-
+      console.log("Nearest date:", d.toISOString(), "Failed count:", failed);
       for (const key in enabledMarkers) {
         const typedKey = key as keyof typeof enabledMarkers;
         if (enabledMarkers[typedKey]) {
@@ -290,12 +290,14 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         d.setUTCDate(d.getUTCDate() - 1);
         return nearestDate(d, api_selected, failed + 1);
       }
-      return [d, failed];
+      // ✅ reset failed when data is found
+      return [d, 0];
     } catch (err) {
       console.error("nearestDate() failed:", err);
       return [d, failed];
     }
   }
+  
 
   // fetchMarkers (unchanged, only uses fromInit timestamp correctly)
   const fetchMarkers = (type: string, time: string) => {
