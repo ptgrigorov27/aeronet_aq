@@ -34,10 +34,12 @@ import {
 import { Bar } from "react-chartjs-2";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 
+// Props for SidePanel
 interface SidePanelProps {
   setExType: (t: string) => void;
 }
 
+// Register chart.js modules
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -50,6 +52,8 @@ ChartJS.register(ChartDataLabels);
 
 const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   const { map } = useMapContext();
+
+  // --- State variables for panel behavior ---
   const [isCloudLayerVisible, setIsCloudLayerVisible] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(map?.getZoom() || 2);
   const [markerSize, setMarkerSize] = useState<number>(
@@ -69,16 +73,13 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   const [chartOptions, setChartOptions] = useState({});
   const [ready, setReady] = useState<boolean>(false);
   const [collapsed, setCollapsed] = useState(false);
-  // const [fromInit] = useState<number>(0);
   const [selectArr, setSelectArr] = useState<string[]>(["", "", ""]);
   const [zoomChange, setZoomChange] = useState<boolean>(false);
-  const [selectedGroup, setSelectedGroup] = useState<string[]>([
-    "DoS Missions",
-  ]);
-  // const [initDate, setInitDate] = useState<Date | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<string[]>(["DoS Missions"]);
   const [fromInit, setFromInit] = useState<number>(0);
+  const [scrnWidth, setScrnWidth] = useState(600);
 
-
+  // Time slots for forecasts
   const timeArr = [130, 430, 730, 1030, 1330, 1630, 1930, 2230];
   const [enabledMarkers] = useState({
     "DoS Missions": true,
@@ -88,11 +89,13 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
   const chipNames = ["DoS Missions", "AERONET", "Open AQ"];
 
+  // External layers (NASA imagery + labels)
   const nonbaseMaps = [
     "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
     "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
   ];
 
+  // Display labels for times
   const selectTimeArr = [
     "1:30 UTC",
     "4:30 UTC",
@@ -104,9 +107,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     "22:30 UTC",
   ];
 
-  const [scrnWidth, setScrnWidth] = useState(600);
-
-  // ---------- HELPERS MOVED UP (so no TS errors) ----------
+  // --- Chart helpers ---
   function genLabels(readings: any[]): string[] {
     const labels: string[] = [];
     for (const date in readings) {
@@ -174,14 +175,15 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       },
     };
   }
-  // ---------------------------------------------------------
 
+  // --- Effects ---
   useEffect(() => {
     const handleResize = () => setScrnWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Update enabled markers when group changes
   useEffect(() => {
     Object.keys(enabledMarkers).forEach((group) => {
       const key = group as keyof typeof enabledMarkers;
@@ -190,25 +192,17 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     setRefreshMarkers(true);
   }, [selectedGroup]);
 
-  // useEffect(() => {
-  //   setTimeout(() => {
-  //     setApiDate(new Date().toISOString());
-  //     setType("AQI");
-  //     nearestTime(new Date().toISOString());
-  //   }, 500);
-  // }, [map]);
+  // Initialize API date & nearest forecast time
   useEffect(() => {
     const today = new Date();
-    // Set something immediately so UI renders
     setApiDate(today.toISOString());
     setType("AQI");
     nearestTime(today.toISOString());
 
-    // Now async update if today is invalid
     const init = async () => {
       try {
         const nearest = await nearestDate(today);
-        setApiDate(nearest.toISOString()); // overwrite with nearest valid
+        setApiDate(nearest.toISOString());
         nearestTime(nearest.toISOString());
       } catch (err) {
         console.error("nearestDate failed:", err);
@@ -217,6 +211,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     init();
   }, [map]);
 
+  // Refresh cloud layer when date changes
   useEffect(() => {
     setTimeout(() => {
       if (isCloudLayerVisible) {
@@ -226,11 +221,13 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     }, 500);
   }, [apiDate, innerDate]);
 
+  // Update marker size on zoom
   useEffect(() => {
     setMarkerSize((zoomLevel + 2) * (Math.E - 1));
     setZoomChange(true);
   }, [zoomLevel]);
 
+  // Track zoom changes
   useEffect(() => {
     if (!map) return undefined;
     const onZoom = () => setZoomLevel(map.getZoom());
@@ -240,6 +237,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     };
   }, [map]);
 
+  // Build chart when site is clicked
   useEffect(() => {
     if (showChart && chartData.length > 0) {
       setTimeout(() => {
@@ -250,6 +248,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     }
   }, [showChart, chartData]);
 
+  // --- Helpers ---
   function getMapDate(): string {
     const d = new Date(fromInit);
     d.setUTCDate(d.getUTCDate() + innerDate);
@@ -259,6 +258,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     )}-${String(d.getUTCDate()).padStart(2, "0")}`;
   }
 
+  // Cloud imagery layers
   function cloudLayer(): L.LayerGroup {
     const wmsLayer = L.tileLayer.wms(nonbaseMaps[0], {
       layers: "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
@@ -281,6 +281,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return L.layerGroup([wmsLayer, labelsLayer]);
   }
 
+  // Find nearest valid forecast date
   async function nearestDate(
     initDate: Date,
     api_selected = API_DEF
@@ -301,6 +302,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return d;
   }
 
+  // Find nearest forecast time (slot)
   function nearestTime(dt: string): number {
     const d = new Date(dt);
     const hr = d.getUTCHours() * 100;
@@ -320,12 +322,13 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return nearestValue;
   }
 
+  // Layer controls
   function writeLayer(layer: L.LayerGroup): boolean {
     try {
       map?.addLayer(layer);
       return true;
     } catch (err) {
-      console.error(`Error adding group; ${layer} with error ${err}`);
+      console.error(`Error adding group: ${err}`);
       return false;
     }
   }
@@ -356,18 +359,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       : writeLayer(cloudLayer());
   }
 
-  // function _initUTCDate(inDate: Date | null = null): Date {
-  //   let d: Date;
-  //   if (!inDate) {
-  //     d = new Date();
-  //     nearestDate(d).catch(console.error);
-  //   } else {
-  //     d = new Date(inDate);
-  //   }
-  //   d.setUTCMinutes(0);
-  //   return d;
-  // }
-
+  // --- Handlers ---
   function handleZoomChange(event: React.ChangeEvent<HTMLInputElement>): void {
     const zoom = Number.parseInt(event.target.value, 10);
     if (map) {
@@ -395,9 +387,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     setCollapsed(!collapsed);
   }
 
+  // --- JSX (UI rendering) ---
   return (
     <>
-      {/* collapse toggle button */}
+      {/* Collapse toggle button */}
       <h5
         style={{
           zIndex: 1001,
@@ -433,7 +426,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         </button>
       </h5>
 
-      {/* side panel card */}
+      {/* Side panel card */}
       <Card
         id="collapseMod"
         style={{
@@ -451,6 +444,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
             Air Quality Forecast
           </Card.Title>
 
+          {/* Zoom, reset, and satellite buttons */}
           <div className={styles.buttonGroup}>
             <div className={styles.sliderContainer}>
               <input
@@ -479,6 +473,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
           <hr className={styles.separator} />
 
+          {/* Forecast selection controls */}
           <div className={styles.buttonGroup}>
             {apiDate && (
               <>
@@ -530,6 +525,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
                     </FormControl>
                   </Box>
                 )}
+
                 <Box className="mt-2" sx={{ minWidth: 120 }}>
                   <FormControl fullWidth>
                     <InputLabel>Type</InputLabel>
@@ -547,6 +543,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
               </>
             )}
 
+            {/* Forecast group selection */}
             <FormControl fullWidth>
               <InputLabel>Enabled Forecast</InputLabel>
               <Select
@@ -581,12 +578,13 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           </div>
         </Card.Body>
 
+        {/* SiteManager handles API + plotting */}
         <SiteManager
           fromInit={innerDate}
           setSelectArr={setSelectArr}
           setFromInit={setInnerDate}
           apiDate={apiDate}
-          exInit={(d: Date) => setFromInit(d.getTime())} 
+          exInit={(d: Date) => setFromInit(d.getTime())}
           setChartData={setChartData}
           setClickedSite={setClickedSite}
           setShowChart={setShowChart}
@@ -602,6 +600,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         />
       </Card>
 
+      {/* Chart modal */}
       <Modal
         show={showChart}
         onHide={handleChartDone}

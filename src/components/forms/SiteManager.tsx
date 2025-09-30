@@ -6,9 +6,7 @@ import { API_ARNT, API_AQ, API_DEF } from "../../config";
 import axios from "axios";
 import { setTextColor, setColor } from "../Utils";
 
-/**
- * Props expected by SiteManager
- */
+// Props expected by SiteManager
 interface SiteManagerProps {
   exInit: (d: Date) => void;
   apiDate: string;
@@ -61,18 +59,18 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   zoomChange,
 }) => {
   const { map } = useMapContext();
-  const [readings, setReadingsDEF] = useState<{
-    [key: string]: ReadingRecord[];
-  }>({});
+  const [readings, setReadingsDEF] = useState<{ [key: string]: ReadingRecord[] }>({});
   const [coordArr, setCoordArr] = useState<CoordRecord>({});
   const [initDate, setInitDate] = useState<Date | null>(null);
 
+  // API endpoints for different stations
   const api_urls: { [key: string]: string } = {
     "DoS Missions": API_DEF,
     AERONET: API_ARNT,
     "Open AQ": API_AQ,
   };
 
+  // --- React hooks for updates ---
   useEffect(() => {
     if (zoom) {
       updateMarkerSize(markerSize);
@@ -102,6 +100,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     fetchReadings(apiDate, 0);
   }, [apiDate, enabledMarkers]);
 
+  // --- Helper to resize markers on zoom ---
   const updateMarkerSize = (size: number) => {
     if (map) {
       map.eachLayer((layer: L.Layer) => {
@@ -112,19 +111,18 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     }
   };
 
+  // --- Clear all old markers ---
   function clearMarkers() {
     if (map) {
       map.eachLayer((layer: L.Layer) => {
-        if (
-          layer instanceof L.CircleMarker ||
-          layer instanceof L.FeatureGroup
-        ) {
+        if (layer instanceof L.CircleMarker || layer instanceof L.FeatureGroup) {
           map.removeLayer(layer);
         }
       });
     }
   }
 
+  // --- Utility: Convert CSV to JSON ---
   function csvToJSON(csv: string) {
     const lines = csv.split("\n");
     const result: any[] = [];
@@ -147,6 +145,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     return result;
   }
 
+  // --- Generate forecast date options for dropdown ---
   function setSelection(d: Date) {
     const d2 = new Date(d);
     d2.setUTCDate(d.getUTCDate() + 1);
@@ -161,6 +160,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     );
   }
 
+  // --- Fetch station readings & site coordinates ---
   async function fetchReadings(
     sAPI?: string,
     failed: number = 0
@@ -171,14 +171,15 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
     try {
       [d, failed] = await nearestDate(d, API_DEF, failed);
-      console.log("Nearest date:", d.toISOString(), "Failed count:", failed);
+      // console.log("Nearest date:", d.toISOString(), "Failed count:", failed);
+
       for (const key in enabledMarkers) {
         const typedKey = key as keyof typeof enabledMarkers;
         if (enabledMarkers[typedKey]) {
           const api_selected = api_urls[key];
           setResponse("Fetch in progress...");
 
-          // ✅ safer handling of sAPI date
+          // Allow overriding API date
           if (sAPI) {
             const candidate = new Date(sAPI);
             if (!isNaN(candidate.getTime())) {
@@ -199,43 +200,26 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           const response = await axios.get(
             `${api_selected}year=${year}&month=${month}&day=${date}`
           );
-          console.log(
-            "API request URL:",
-            `${api_selected}year=${year}&month=${month}&day=${date}`
-          );
-          console.log(
-            "API response data (first 500 chars):",
-            response.data.substring(0, 500)
-          );
+          // console.log("API request URL:", `${api_selected}year=${year}&month=${month}&day=${date}`);
+          // console.log("API response data (first 500 chars):", response.data.substring(0, 500));
+
+          // Parse CSV forecast data
           const csvBase = document.createElement("html");
           csvBase.innerHTML = response.data;
-          const locationData = csvBase.textContent
-            ?.split("\n")
-            .slice(2)
-            .join("\n");
+          const locationData = csvBase.textContent?.split("\n").slice(2).join("\n");
           const data = csvToJSON(locationData || "");
 
-          // const location_file = await fetch("/new_web/aqforecast/out.csv").then(
-          //   (res) => res.text()
-          // );
-          // const data2 = csvToJSON(location_file);
+          // Load coordinates from out.csv
           const location_file = await fetch("/new_web/aqforecast/out.csv")
-            .then((response) => {
-              console.log("out.csv fetch response:", response); // ✅ shows status, URL, etc.
-              return response.text();
-            })
+            .then((response) => response.text())
             .catch((err) => {
               console.error("Error fetching out.csv:", err);
               return "";
             });
 
-          console.log(
-            "out.csv content (first 500 chars):",
-            location_file.slice(0, 500)
-          );
+          // console.log("out.csv content (first 500 chars):", location_file.slice(0, 500));
 
           const data2 = csvToJSON(location_file);
-
           data2.forEach((obj: any) => {
             if (obj.sitename) {
               const siteName = obj.sitename.toLowerCase();
@@ -246,14 +230,11 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             }
           });
 
-          // ✅ Fill forecast date dropdown
-          // setSelectArr(setSelection(d));
-          // console.log("Forecast dropdown values:", setSelection(d));
+          // Fill forecast date dropdown
           const selection = setSelection(d);
           if (selection && selection.length > 0) {
-            setSelectArr(selection); // ✅ Use API-based dates
+            setSelectArr(selection);
           } else {
-            // 🔴 Fallback in case API fails or returns empty
             setSelectArr([
               "Day 1 (No API data)",
               "Day 2 (No API data)",
@@ -261,6 +242,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             ]);
           }
 
+          // Store readings by site
           data.forEach((obj: any) => {
             if (obj.Site_Name) {
               const siteName = obj.Site_Name.toLowerCase();
@@ -268,23 +250,19 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               readingResult[siteName].push(obj);
             }
           });
-          ``;
         }
       }
 
+      // Update state with results
       setResponse("");
       setCoordArr(coordResult);
       setReadingsDEF(readingResult);
-      setFromInit(failed);
-      setSelectArr(setSelection(d));
-      // ✅ store actual timestamp, not failed count
       setFromInit(d.getTime());
       exInit(d);
       setInitDate(d);
     } catch (e) {
       console.error(e);
       setResponse("API returned: No data available.");
-      // setSelectArr(["", "", ""]);
       setSelectArr([
         "Day 1 (Fallback)",
         "Day 2 (Fallback)",
@@ -295,6 +273,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     return true;
   }
 
+  // --- Get nearest valid API date ---
   async function nearestDate(
     d: Date,
     api_selected: string,
@@ -309,31 +288,27 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       const response = await axios.get(
         `${api_selected}year=${year}&month=${month}&day=${date}`
       );
-      console.log(
-        "API request URL:",
-        `${api_selected}year=${year}&month=${month}&day=${date}`
-      );
-      console.log("API raw response:", response);
+      // console.log("API request URL:", `${api_selected}year=${year}&month=${month}&day=${date}`);
       if (response.data.includes("Error")) {
         if (failed > 7) throw new Error("No recent forecast data found.");
         d.setUTCDate(d.getUTCDate() - 1);
         return nearestDate(d, api_selected, failed + 1);
       }
-      // ✅ reset failed when data is found
-      return [d, 0];
+      return [d, 0]; // reset failed counter on success
     } catch (err) {
       console.error("nearestDate() failed:", err);
       return [d, failed];
     }
   }
 
-  // fetchMarkers (unchanged, only uses fromInit timestamp correctly)
+  // --- Plot markers on the map for each site ---
   const fetchMarkers = (type: string, time: string) => {
     let rKey: string | undefined;
     if (readings) {
       try {
         for (const site in coordArr) {
           if (Object.keys(readings).includes(site)) {
+            // Find correct reading column for AQI, PM, or DAILY AQI
             if (type !== "DAILY_AQI") {
               rKey = Object.keys(readings[site][0]).find(
                 (x) => x.includes(type) && x.includes(time)
@@ -344,25 +319,31 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               );
             }
             if (!rKey) continue;
+
             const value = type.includes("AQI")
               ? parseInt(readings[site][0][rKey])
               : parseFloat(readings[site][0][rKey]);
             const markerColor = setColor(value, "outter")?.toString() || "grey";
             const markerReference = readings[site][0];
+
             const markerType: { [key: string]: string } = {
               PM: "PM 2.5",
               DAILY_AQI: "DAILY AQI",
               AQI: "AQI",
             };
+
             const siteName: string = site
               .replace("__", "_")
               .split("_")
               .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
               .join(" ");
+
             const pmKey = Object.keys(readings[site][0]).find(
               (x) => x.includes("PM") && x.includes(time)
             );
             const pm = pmKey ? readings[site][0][pmKey] : "0";
+
+            // Create map marker
             const marker = L.circleMarker(
               [coordArr[site].Latitude, coordArr[site].Longitude],
               {
@@ -376,6 +357,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               } as any
             ).addTo(map!);
 
+            // Tooltip on hover
             marker.on("mouseover", () => {
               marker
                 .bindPopup(
@@ -400,6 +382,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
                 .openPopup();
             });
 
+            // Show chart on click
             marker.on("click", () => {
               setClickedSite(`${siteName} | 3-Day Forecast`);
               const chartData = createChartData(readings[site]);
@@ -415,6 +398,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     }
   };
 
+  // --- Prepare chart data for 3-day forecast ---
   const createChartData = (reading: any[]) => {
     const chartData: any[] = [{}, {}, {}];
     if (!initDate) return chartData;
