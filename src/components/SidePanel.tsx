@@ -75,7 +75,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [selectArr, setSelectArr] = useState<string[]>(["", "", ""]);
   const [zoomChange, setZoomChange] = useState<boolean>(false);
-  const [selectedGroup, setSelectedGroup] = useState<string[]>(["DoS Missions"]);
+  const [selectedGroup, setSelectedGroup] = useState<string[]>([
+    "DoS Missions",
+  ]);
   const [fromInit, setFromInit] = useState<number>(0);
   const [scrnWidth, setScrnWidth] = useState(600);
 
@@ -191,6 +193,13 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     });
     setRefreshMarkers(true);
   }, [selectedGroup]);
+
+  //  NEW useEffect to ensure default forecast date is selected
+  useEffect(() => {
+    if (selectArr.length > 0) {
+      setInnerDate(0); // Always default to the first forecast date
+    }
+  }, [selectArr]);
 
   // Initialize API date & nearest forecast time
   useEffect(() => {
@@ -481,11 +490,14 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
                   maxDate={dayjs(new Date())}
                   value={apiDate ? dayjs(apiDate) : null}
                   onChange={(date: Dayjs | null) => {
-                    if (date) setApiDate(date.toISOString());
+                    if (date) {
+                      setApiDate(date.toISOString());
+                      setInnerDate(0); 
+                    }
                   }}
                   label="Model Initialization"
                 />
-
+  
                 <Box className="mt-2" sx={{ minWidth: 120 }}>
                   <FormControl fullWidth>
                     <InputLabel>Forecast Date</InputLabel>
