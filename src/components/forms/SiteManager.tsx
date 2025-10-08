@@ -218,17 +218,18 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             });
 
           // console.log("out.csv content (first 500 chars):", location_file.slice(0, 500));
-
+          
           const data2 = csvToJSON(location_file);
           data2.forEach((obj: any) => {
-            if (obj.sitename) {
-              const siteName = obj.sitename.toLowerCase();
-              coordResult[siteName] = {
+            if (obj.sitename && obj.Forecast) {
+              const key = `${obj.sitename.toLowerCase()}_${obj.Forecast.toLowerCase()}`;
+              coordResult[key] = {
                 Latitude: parseFloat(obj.Latitude || "0"),
                 Longitude: parseFloat(obj.Longitude || "0"),
               };
             }
           });
+          
 
           // Fill forecast date dropdown
           const selection = setSelection(d);
@@ -242,13 +243,16 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             ]);
           }
 
-          // Store readings by site
+          // Store readings by Sitename and Forecast 
           data.forEach((obj: any) => {
             if (obj.Site_Name) {
               const siteName = obj.Site_Name.toLowerCase();
-              if (!readingResult[siteName]) readingResult[siteName] = [];
-              readingResult[siteName].push(obj);
-            }
+              const forecast = obj.Forecast || "DoS Missions"; // fallback if missing
+              const key = `${siteName}_${forecast.toLowerCase()}`;
+            
+              if (!readingResult[key]) readingResult[key] = [];
+              readingResult[key].push(obj);
+            }            
           });
         }
       }
@@ -302,101 +306,101 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }
 
   // --- Plot markers on the map for each site ---
-  const fetchMarkers = (type: string, time: string) => {
-    let rKey: string | undefined;
-    if (readings) {
-      try {
-        for (const site in coordArr) {
-          if (Object.keys(readings).includes(site)) {
-            // Find correct reading column for AQI, PM, or DAILY AQI
-            if (type !== "DAILY_AQI") {
-              rKey = Object.keys(readings[site][0]).find(
-                (x) => x.includes(type) && x.includes(time)
-              );
-            } else {
-              rKey = Object.keys(readings[site][0]).find((x) =>
-                x.includes(type)
-              );
-            }
-            if (!rKey) continue;
+const fetchMarkers = (type: string, time: string) => {
+  let rKey: string | undefined;
+  if (readings) {
+    try {
+      for (const key in coordArr) {
+        if (Object.keys(readings).includes(key)) {
+          // 🔑 Split site key into sitename + forecast source
+          const [rawName, rawForecast] = key.split("_");
+          const forecastSource = rawForecast
+            ? rawForecast.charAt(0).toUpperCase() + rawForecast.slice(1)
+            : "Unknown";
+          const siteName =
+            rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-            const value = type.includes("AQI")
-              ? parseInt(readings[site][0][rKey])
-              : parseFloat(readings[site][0][rKey]);
-            const markerColor = setColor(value, "outter")?.toString() || "grey";
-            const markerReference = readings[site][0];
-
-            const markerType: { [key: string]: string } = {
-              PM: "PM 2.5",
-              DAILY_AQI: "DAILY AQI",
-              AQI: "AQI",
-            };
-
-            const siteName: string = site
-              .replace("__", "_")
-              .split("_")
-              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-              .join(" ");
-
-            const pmKey = Object.keys(readings[site][0]).find(
-              (x) => x.includes("PM") && x.includes(time)
+          // --- Find correct reading column for AQI, PM, or DAILY AQI ---
+          if (type !== "DAILY_AQI") {
+            rKey = Object.keys(readings[key][0]).find(
+              (x) => x.includes(type) && x.includes(time)
             );
-            const pm = pmKey ? readings[site][0][pmKey] : "0";
-
-            // Create map marker
-            const marker = L.circleMarker(
-              [coordArr[site].Latitude, coordArr[site].Longitude],
-              {
-                fillColor: markerColor,
-                color: "white",
-                radius: markerSize,
-                fillOpacity: 1,
-                opacity: 1,
-                weight: 2,
-                stroke: true,
-              } as any
-            ).addTo(map!);
-
-            // Tooltip on hover
-            marker.on("mouseover", () => {
-              marker
-                .bindPopup(
-                  `<div style="background-color: ${markerColor}; color: ${setTextColor(
-                    value
-                  )}; border-radius: 8px; padding: 20px;">
-                      <div><b>Site Name:</b> ${siteName}
-                        <span style="float: right;"><b>Station:</b> ${
-                          markerReference["Station"]
-                        }</span>
-                      </div>
-                      <div>
-                        <span style="font-size: 20px;"><b>${
-                          markerType[type]
-                        }:</b> ${value}</span>
-                        <span style="float: right; font-size: 20px;">
-                          <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
-                        </span>
-                      </div>
-                  </div>`
-                )
-                .openPopup();
-            });
-
-            // Show chart on click
-            marker.on("click", () => {
-              setClickedSite(`${siteName} | 3-Day Forecast`);
-              const chartData = createChartData(readings[site]);
-              setChartData(chartData);
-              setTimeout(() => setShowChart(true), 500);
-            });
+          } else {
+            rKey = Object.keys(readings[key][0]).find((x) =>
+              x.includes(type)
+            );
           }
+          if (!rKey) continue;
+
+          const value = type.includes("AQI")
+            ? parseInt(readings[key][0][rKey])
+            : parseFloat(readings[key][0][rKey]);
+          const markerColor = setColor(value, "outter")?.toString() || "grey";
+          // const markerReference = readings[key][0];
+
+          const markerType: { [key: string]: string } = {
+            PM: "PM 2.5",
+            DAILY_AQI: "DAILY AQI",
+            AQI: "AQI",
+          };
+
+          const pmKey = Object.keys(readings[key][0]).find(
+            (x) => x.includes("PM") && x.includes(time)
+          );
+          const pm = pmKey ? readings[key][0][pmKey] : "0";
+
+          // --- Create map marker ---
+          const marker = L.circleMarker(
+            [coordArr[key].Latitude, coordArr[key].Longitude],
+            {
+              fillColor: markerColor,
+              color: "white",
+              radius: markerSize,
+              fillOpacity: 1,
+              opacity: 1,
+              weight: 2,
+              stroke: true,
+            } as any
+          ).addTo(map!);
+
+          // --- Tooltip on hover ---
+          marker.on("mouseover", () => {
+            marker
+              .bindPopup(
+                `<div style="background-color: ${markerColor}; color: ${setTextColor(
+                  value
+                )}; border-radius: 8px; padding: 20px;">
+                    <div><b>Site Name:</b> ${siteName}
+                      <span style="float: right;"><b>Source:</b> ${forecastSource}</span>
+                    </div>
+                    <div>
+                      <span style="font-size: 20px;"><b>${
+                        markerType[type]
+                      }:</b> ${value}</span>
+                      <span style="float: right; font-size: 20px;">
+                        <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
+                      </span>
+                    </div>
+                </div>`
+              )
+              .openPopup();
+          });
+
+          // --- Show chart on click ---
+          marker.on("click", () => {
+            setClickedSite(`${siteName} (${forecastSource}) | 3-Day Forecast`);
+            const chartData = createChartData(readings[key]);
+            setChartData(chartData);
+            setTimeout(() => setShowChart(true), 500);
+          });
         }
-      } catch (e) {
-        console.error("fetchMarkers() error:", e);
-        setResponse("API returned: No data available.");
       }
+    } catch (e) {
+      console.error("fetchMarkers() error:", e);
+      setResponse("API returned: No data available.");
     }
-  };
+  }
+};
 
   // --- Prepare chart data for 3-day forecast ---
   const createChartData = (reading: any[]) => {
