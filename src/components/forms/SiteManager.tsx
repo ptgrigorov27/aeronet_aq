@@ -363,28 +363,38 @@ const fetchMarkers = (type: string, time: string) => {
             } as any
           ).addTo(map!);
 
-          // --- Tooltip on hover ---
+            // --- Tooltip on hover ---
           marker.on("mouseover", () => {
             marker
               .bindPopup(
-                `<div style="background-color: ${markerColor}; color: ${setTextColor(
-                  value
-                )}; border-radius: 8px; padding: 20px;">
-                    <div><b>Site Name:</b> ${siteName}
-                      <span style="float: right;"><b>Source:</b> ${forecastSource}</span>
-                    </div>
-                    <div>
-                      <span style="font-size: 20px;"><b>${
-                        markerType[type]
-                      }:</b> ${value}</span>
-                      <span style="float: right; font-size: 20px;">
-                        <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
-                      </span>
-                    </div>
+                `<div style="
+                  background-color: ${markerColor};
+                  color: ${setTextColor(value)};
+                  border-radius: 10px;
+                  padding: 10px 14px;
+                  width: 260px;
+                  font-size: 13px;
+                  font-weight: 500;
+                  line-height: 1.4;
+                  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                ">
+                  <div style="margin-bottom: 6px;">
+                    <b>Site Name:</b> ${siteName}<br>
+                    <b>Source:</b> ${forecastSource}
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 16px;">
+                      <b>${markerType[type]}:</b> ${value}
+                    </span>
+                    <span style="font-size: 16px;">
+                      <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
+                    </span>
+                  </div>
                 </div>`
               )
               .openPopup();
           });
+
 
           // --- Show chart on click ---
           marker.on("click", () => {
