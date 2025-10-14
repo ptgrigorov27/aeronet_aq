@@ -1,0 +1,18 @@
+.mapContainer {
+  height: 100vh;
+  width: calc(100%);
+  margin-right: 0;
+  background: #fff;
+}
+
+.leaflet-container {
+  background: linear-gradient(90deg, grey, black);
+  outline: 0;
+}
+
+.leaflet-container.leaflet-touch.leaflet-fade-anim.leaflet-grab.leaflet-touch-drag.leaflet-touch-zoom {
+  background: linear-gradient(90deg, grey, black);
+}
+.leaflet-popup-close-button {
+  display: none;
+}
