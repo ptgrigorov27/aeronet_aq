@@ -87,9 +87,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     "DoS Missions": true,
     AERONET: false,
     "Open AQ": false,
+    "African AQE": false,
   });
 
-  const chipNames = ["DoS Missions", "AERONET", "Open AQ"];
+  const chipNames = ["DoS Missions", "AERONET", "Open AQ", "African AQE"];
 
   // External layers (NASA imagery + labels)
   const nonbaseMaps = [
@@ -133,12 +134,11 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const [ds1] = cData[0] ? Array.from(Object.values(cData[0])) : [];
     const [ds2] = cData[1] ? Array.from(Object.values(cData[1])) : [];
     const [ds3] = cData[2] ? Array.from(Object.values(cData[2])) : [];
-  
+
     const n1 = Number(ds1);
     const n2 = Number(ds2);
     const n3 = Number(ds3);
-    const barThickness = scrnWidth < 768 ? 25 : 45; // ✅ responsive bars
-  
+
     return {
       labels,
       datasets: [
@@ -147,85 +147,44 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           data: [n1, null, null],
           borderColor: setColor(n1, "outter")?.toString() || "grey",
           backgroundColor: setColor(n1, "outter")?.toString() || "grey",
-          borderWidth: 1,
-          barThickness,
-          datalabels: {
-            color: setTextColor(n1),
-            font: { size: scrnWidth < 768 ? 12 : 16, weight: 600 },
-            anchor: "end",
-            align: "start",
-          },
+          datalabels: { color: setTextColor(n1) },
         },
         {
           label: setText(n2),
           data: [null, n2, null],
           borderColor: setColor(n2, "outter")?.toString() || "grey",
           backgroundColor: setColor(n2, "outter")?.toString() || "grey",
-          borderWidth: 1,
-          barThickness,
-          datalabels: {
-            color: setTextColor(n2),
-            font: { size: scrnWidth < 768 ? 12 : 16, weight: 600 },
-            anchor: "end",
-            align: "start",
-          },
+          datalabels: { color: setTextColor(n2) },
         },
         {
           label: setText(n3),
           data: [null, null, n3],
           borderColor: setColor(n3, "outter")?.toString() || "grey",
           backgroundColor: setColor(n3, "outter")?.toString() || "grey",
-          borderWidth: 1,
-          barThickness,
-          datalabels: {
-            color: setTextColor(n3),
-            font: { size: scrnWidth < 768 ? 12 : 16, weight: 600 },
-            anchor: "end",
-            align: "start",
-          },
+          datalabels: { color: setTextColor(n3) },
         },
       ],
     };
   }
-  
-  
+
   function genChartOptions(): object {
     return {
       responsive: true,
-      maintainAspectRatio: false, // ✅ fixes squished look
       plugins: {
         legend: { display: false },
         datalabels: {
-          clamp: true,
-          clip: false,
-        },
-        tooltip: {
-          titleFont: { size: 14 },
-          bodyFont: { size: 13 },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { font: { size: 13 } },
-          grid: { display: false },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: { stepSize: 10, font: { size: 12 } },
-          grid: { color: "rgba(0,0,0,0.1)" },
+          font: { size: scrnWidth > 575 ? "80%" : "50%" },
         },
       },
     };
   }
-  
-  
-useEffect(() => {
-  const handleResize = () => setScrnWidth(window.innerWidth);
-  window.addEventListener("resize", handleResize);
-  return () => window.removeEventListener("resize", handleResize);
-}, []);
 
-// Later, in buildChart:
+  // --- Effects ---
+  useEffect(() => {
+    const handleResize = () => setScrnWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Update enabled markers when group changes
   useEffect(() => {
@@ -664,10 +623,9 @@ useEffect(() => {
         <Modal.Header closeButton>
           <Modal.Title>{clickedSite}</Modal.Title>
         </Modal.Header>
-          <Modal.Body style={{ height: "400px", padding: "15px" }}>
-              {ready && chartD && <Bar options={chartOptions} data={chartD} />}
-          </Modal.Body>
-
+        <Modal.Body>
+          {ready && chartD && <Bar options={chartOptions} data={chartD} />}
+        </Modal.Body>
       </Modal>
     </>
   );
