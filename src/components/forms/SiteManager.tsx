@@ -19,7 +19,7 @@ interface SiteManagerProps {
     "DoS Missions": boolean;
     AERONET: boolean;
     "Open AQ": boolean;
-    "Africa AQE": boolean;
+    "African AQE": boolean;
   };
   zoom: number;
   setResponse: React.Dispatch<React.SetStateAction<string>>;
@@ -69,7 +69,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     "DoS Missions": API_DEF,
     AERONET: API_ARNT,
     "Open AQ": API_AQ,
-    "Africa AQE": API_AAQE,
+    "African AQE": API_AAQE,
   };
 
   // --- React hooks for updates ---
