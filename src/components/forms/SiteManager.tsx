@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useMapContext } from "../MapContext";
 import L from "leaflet";
 import "leaflet-svg-shape-markers";
-import { API_ARNT, API_AQ, API_DEF } from "../../config";
+import { API_ARNT, API_AQ, API_DEF, API_AAQE } from "../../config";
 import axios from "axios";
 import { setTextColor, setColor } from "../Utils";
 
@@ -19,6 +19,7 @@ interface SiteManagerProps {
     "DoS Missions": boolean;
     AERONET: boolean;
     "Open AQ": boolean;
+    "Africa AQE": boolean;
   };
   zoom: number;
   setResponse: React.Dispatch<React.SetStateAction<string>>;
@@ -68,6 +69,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     "DoS Missions": API_DEF,
     AERONET: API_ARNT,
     "Open AQ": API_AQ,
+    "Africa AQE": API_AAQE,
   };
 
   // --- React hooks for updates ---
