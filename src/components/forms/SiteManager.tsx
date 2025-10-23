@@ -262,10 +262,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           data.forEach((obj: any) => {
             if (obj.Site_Name) {
               const siteName = obj.Site_Name.toLowerCase();
-              const forecast = obj.Forecast || "DoS Missions"; // fallback if missing
-              //console.log(forecast);
+              const forecast = obj.Forecast;
               const key = `${siteName}_${forecast.toLowerCase()}`;
-            
               if (!readingResult[key]) readingResult[key] = [];
               readingResult[key].push(obj);
             }            
@@ -328,8 +326,11 @@ const fetchMarkers = (type: string, time: string) => {
     try {
       for (const key in coordArr) {
         if (Object.keys(readings).includes(key)) {
-          // 🔑 Split site key into sitename + forecast source
-          const [rawName, rawForecast] = key.split("_");
+          // Split site key into sitename + forecast source
+          const lastUnderscore = key.lastIndexOf("_");
+          const rawName = key.slice(0, lastUnderscore);
+          const rawForecast = key.slice(lastUnderscore + 1);
+
           const forecastSource = rawForecast
             ? rawForecast.charAt(0).toUpperCase() + rawForecast.slice(1)
             : "Unknown";
