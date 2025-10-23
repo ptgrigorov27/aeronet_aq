@@ -208,7 +208,10 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           // Parse CSV forecast data
           const csvBase = document.createElement("html");
           csvBase.innerHTML = response.data;
-          const locationData = csvBase.textContent?.split("\n").slice(2).join("\n");
+          const locationData = csvBase.textContent
+            ?.split("\n")
+            .slice(2)
+            .join("\n");
           const data = csvToJSON(locationData || "");
 
           // Load coordinates from out.csv
@@ -220,7 +223,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             });
 
           // console.log("out.csv content (first 500 chars):", location_file.slice(0, 500));
-          
+
           const data2 = csvToJSON(location_file);
           data2.forEach((obj: any) => {
             if (obj.sitename && obj.Forecast) {
@@ -231,7 +234,36 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               };
             }
           });
-          
+          //  Inject missing Forecast values into API data ------
+
+          // 1. Build a lookup map of site → Forecast from data2 (out.csv)
+          const forecastMap: Record<string, string> = {};
+          data2.forEach((obj: any) => {
+            if (obj.sitename && obj.Forecast) {
+              const site = obj.sitename.trim().toLowerCase();
+              forecastMap[site] = obj.Forecast.trim();
+            }
+          });
+
+          // 2. Inject Forecasts into API data if missing
+          data.forEach((obj: any) => {
+            const site = obj.Site_Name?.trim().toLowerCase();
+            if (
+              site &&
+              (!obj.Forecast || obj.Forecast === "undefined") &&
+              forecastMap[site]
+            ) {
+              obj.Forecast = forecastMap[site];
+            }
+          });
+
+          // 3. Debug log to verify the fix
+          console.log(
+            " Forecasts injected:",
+            new Set(data.map((x: any) => x.Forecast))
+          );
+
+          // ------ FIX END ------
 
           // Fill forecast date dropdown
           const selection = setSelection(d);
@@ -245,16 +277,16 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             ]);
           }
 
-          // Store readings by Sitename and Forecast 
+          // Store readings by Sitename and Forecast
           data.forEach((obj: any) => {
             if (obj.Site_Name) {
               const siteName = obj.Site_Name.toLowerCase();
               const forecast = obj.Forecast || "DoS Missions"; // fallback if missing
               const key = `${siteName}_${forecast.toLowerCase()}`;
-            
+
               if (!readingResult[key]) readingResult[key] = [];
               readingResult[key].push(obj);
-            }            
+            }
           });
         }
       }
