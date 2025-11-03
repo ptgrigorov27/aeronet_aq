@@ -9,7 +9,7 @@ import Select, { SelectChangeEvent } from "@mui/material/Select";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import Box from "@mui/material/Box";
 import dayjs, { Dayjs } from "dayjs";
-import { setTextColor, setText, setColor } from "./Utils";
+import { setTextColor, setColor } from "./Utils";
 import { API_DEF } from "./../config";
 import Chip from "@mui/material/Chip";
 import type { ChartData } from "chart.js";
@@ -74,12 +74,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   const [ready, setReady] = useState<boolean>(false);
   const [collapsed, setCollapsed] = useState(false);
   const [selectArr, setSelectArr] = useState<string[]>(["", "", ""]);
-  const [zoomChange, setZoomChange] = useState<boolean>(false);
+  // const [zoomChange, setZoomChange] = useState<boolean>(false);
   const [selectedGroup, setSelectedGroup] = useState<string[]>([
     "DoS Missions",
   ]);
   const [fromInit, setFromInit] = useState<number>(0);
-  const [scrnWidth, setScrnWidth] = useState(600);
+  //const [scrnWidth, setScrnWidth] = useState(600);
 
   // Time slots for forecasts
   const timeArr = [130, 430, 730, 1030, 1330, 1630, 1930, 2230];
@@ -143,25 +143,30 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       labels,
       datasets: [
         {
-          label: setText(n1),
-          data: [n1, null, null],
-          borderColor: setColor(n1, "outter")?.toString() || "grey",
-          backgroundColor: setColor(n1, "outter")?.toString() || "grey",
-          datalabels: { color: setTextColor(n1) },
-        },
-        {
-          label: setText(n2),
-          data: [null, n2, null],
-          borderColor: setColor(n2, "outter")?.toString() || "grey",
-          backgroundColor: setColor(n2, "outter")?.toString() || "grey",
-          datalabels: { color: setTextColor(n2) },
-        },
-        {
-          label: setText(n3),
-          data: [null, null, n3],
-          borderColor: setColor(n3, "outter")?.toString() || "grey",
-          backgroundColor: setColor(n3, "outter")?.toString() || "grey",
-          datalabels: { color: setTextColor(n3) },
+          label: "3-Day AQI Forecast",
+          data: [n1, n2, n3],
+          backgroundColor: [
+            setColor(n1, "outter")?.toString() || "grey",
+            setColor(n2, "outter")?.toString() || "grey",
+            setColor(n3, "outter")?.toString() || "grey",
+          ],
+          borderColor: "white",
+          borderWidth: 2,
+          borderRadius: 6,
+          barPercentage: 0.5, // controls bar thickness
+          categoryPercentage: 0.6, // controls spacing between bars
+          datalabels: {
+            color: (ctx: any) => {
+              const val = ctx.dataset.data[ctx.dataIndex];
+              return setTextColor(val);
+            },
+            anchor: "center",
+            align: "center",
+            font: {
+              size: 22,
+              weight: "bold",
+            },
+          },
         },
       ],
     };
@@ -170,21 +175,43 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   function genChartOptions(): object {
     return {
       responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: { top: 10, bottom: 10, left: 15, right: 15 },
+      },
       plugins: {
         legend: { display: false },
         datalabels: {
-          font: { size: scrnWidth > 575 ? "80%" : "50%" },
+          font: { size: 22, weight: "bold" },
+          anchor: "end",
+          align: "center",
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: "#000",
+            font: { size: 14 },
+          },
+        },
+        y: {
+          grid: { color: "#ddd" },
+          beginAtZero: true,
+          ticks: {
+            stepSize: 10,
+          },
         },
       },
     };
   }
 
   // --- Effects ---
-  useEffect(() => {
-    const handleResize = () => setScrnWidth(window.innerWidth);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  // useEffect(() => {
+  //   const handleResize = () => setScrnWidth(window.innerWidth);
+  //   window.addEventListener("resize", handleResize);
+  //   return () => window.removeEventListener("resize", handleResize);
+  // }, []);
 
   // Update enabled markers when group changes
   useEffect(() => {
@@ -231,10 +258,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     }, 500);
   }, [apiDate, innerDate]);
 
-  // Update marker size on zoom
+  // Update marker size state (no need to trigger zoomChange)
   useEffect(() => {
     setMarkerSize((zoomLevel + 2) * (Math.E - 1));
-    setZoomChange(true);
   }, [zoomLevel]);
 
   // Track zoom changes
@@ -493,12 +519,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
                   onChange={(date: Dayjs | null) => {
                     if (date) {
                       setApiDate(date.toISOString());
-                      setInnerDate(0); 
+                      setInnerDate(0);
                     }
                   }}
                   label="Model Initialization"
                 />
-  
+
                 <Box className="mt-2" sx={{ minWidth: 120 }}>
                   <FormControl fullWidth>
                     <InputLabel>Forecast Date</InputLabel>
@@ -609,7 +635,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           markerSize={markerSize}
           refreshMarkers={refreshMarkers}
           setRefreshMarkers={setRefreshMarkers}
-          zoomChange={zoomChange}
+          //zoomChange={zoomChange}
         />
       </Card>
 
@@ -623,8 +649,15 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         <Modal.Header closeButton>
           <Modal.Title>{clickedSite}</Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        {/* <Modal.Body>
           {ready && chartD && <Bar options={chartOptions} data={chartD} />}
+        </Modal.Body> */}
+        <Modal.Body style={{ height: "250px" }}>
+          {ready && chartD && (
+            <div style={{ height: "100%", width: "100%" }}>
+              <Bar options={chartOptions} data={chartD} />
+            </div>
+          )}
         </Modal.Body>
       </Modal>
     </>

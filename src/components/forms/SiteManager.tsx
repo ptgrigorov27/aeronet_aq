@@ -29,7 +29,7 @@ interface SiteManagerProps {
   markerSize: number;
   refreshMarkers: boolean;
   setRefreshMarkers: React.Dispatch<React.SetStateAction<boolean>>;
-  zoomChange: boolean;
+  //zoomChange: boolean;
 }
 
 type ReadingRecord = { [key: string]: any };
@@ -57,7 +57,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   markerSize,
   refreshMarkers,
   setRefreshMarkers,
-  zoomChange,
+  //zoomChange,
 }) => {
   const { map } = useMapContext();
   const [readings, setReadingsDEF] = useState<{ [key: string]: ReadingRecord[] }>({});
@@ -79,10 +79,10 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     }
   }, [zoom, map]);
 
-  useEffect(() => {
-    clearMarkers();
-    fetchMarkers(type, time);
-  }, [zoomChange]);
+  // useEffect(() => {
+  //   clearMarkers();
+  //   fetchMarkers(type, time);
+  // }, [zoomChange]);
 
   useEffect(() => {
     if (refreshMarkers) {
@@ -112,7 +112,21 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       });
     }
   };
+  // --- Listen for map zoom changes to resize markers dynamically ---
+  useEffect(() => {
+    if (!map) return;
 
+    const handleZoom = () => {
+      const currentZoom = map.getZoom();
+      const newSize = (currentZoom + 2) * (Math.E - 1);
+      updateMarkerSize(newSize);
+    };
+
+    map.on("zoom", handleZoom);
+    return () => {
+      map.off("zoom", handleZoom);
+    };
+  }, [map]);
   // --- Clear all old markers ---
   function clearMarkers() {
     if (map) {
