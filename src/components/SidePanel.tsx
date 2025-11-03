@@ -160,7 +160,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
               const val = ctx.dataset.data[ctx.dataIndex];
               return setTextColor(val);
             },
-            anchor: "end",
+            anchor: "center",
             align: "center",
             font: {
               size: 22,
@@ -170,7 +170,6 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         },
       ],
     };
-    
   }
 
   function genChartOptions(): object {
@@ -206,7 +205,6 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       },
     };
   }
-  
 
   // --- Effects ---
   // useEffect(() => {
@@ -521,12 +519,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
                   onChange={(date: Dayjs | null) => {
                     if (date) {
                       setApiDate(date.toISOString());
-                      setInnerDate(0); 
+                      setInnerDate(0);
                     }
                   }}
                   label="Model Initialization"
                 />
-  
+
                 <Box className="mt-2" sx={{ minWidth: 120 }}>
                   <FormControl fullWidth>
                     <InputLabel>Forecast Date</InputLabel>
@@ -651,8 +649,15 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         <Modal.Header closeButton>
           <Modal.Title>{clickedSite}</Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        {/* <Modal.Body>
           {ready && chartD && <Bar options={chartOptions} data={chartD} />}
+        </Modal.Body> */}
+        <Modal.Body style={{ height: "250px" }}>
+          {ready && chartD && (
+            <div style={{ height: "100%", width: "100%" }}>
+              <Bar options={chartOptions} data={chartD} />
+            </div>
+          )}
         </Modal.Body>
       </Modal>
     </>
