@@ -11,6 +11,8 @@ df2['Forecast'] = "AERONET"
 df3['Forecast'] = "Open AQ"
 df4['Forecast'] = "African AQE"
 
+df2["sitename"] = df2["sitename"].str.replace("-", "_", regex=False).str.strip()
+
 df = pd.concat([df[desired_cols], df2[desired_cols], df3[desired_cols], df4[desired_cols]], axis=0)
 
 for col in df.columns:
