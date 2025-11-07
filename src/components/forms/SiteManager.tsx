@@ -17,7 +17,7 @@ interface SiteManagerProps {
   setClickedSite: React.Dispatch<React.SetStateAction<string>>;
   enabledMarkers: {
     "DoS Missions": boolean;
-    AERONET: boolean;
+    "AERONET": boolean;
     "Open AQ": boolean;
     "African AQE": boolean;
   };
@@ -67,7 +67,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   // API endpoints for different stations
   const api_urls: { [key: string]: string } = {
     "DoS Missions": API_DEF,
-    AERONET: API_ARNT,
+    "AERONET": API_ARNT,
     "Open AQ": API_AQ,
     "African AQE": API_AAQE,
   };
@@ -247,16 +247,23 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           });
           
           const forecastMap: Record<string, string> = {};
+
           data2.forEach((obj: any) => {
             if (obj.sitename && obj.Forecast) {
-              forecastMap[obj.sitename.toLowerCase()] = obj.Forecast;
+              const key = obj.sitename.toLowerCase().trim();
+              if (!forecastMap[key]) {
+                 forecastMap[key] = obj.Forecast;
+              }
             }
           });
 
           data.forEach((obj: any) => {
-            const site = obj.Site_Name?.toLowerCase();
-            if (site && !obj.Forecast && forecastMap[site]) {
-              obj.Forecast = forecastMap[site];
+            const site = obj.Site_Name?.toLowerCase().trim();
+            if (site) {
+              const matchedForecast = forecastMap[site];
+              if (!obj.Forecast && matchedForecast) {
+                obj.Forecast = matchedForecast;
+              }  
             }
           });
 
