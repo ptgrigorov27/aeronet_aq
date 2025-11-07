@@ -83,9 +83,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
   // Time slots for forecasts
   const timeArr = [130, 430, 730, 1030, 1330, 1630, 1930, 2230];
-  const [enabledMarkers] = useState({
+  const [enabledMarkers, setEnabledMarkers] = useState({
     "DoS Missions": true,
-    AERONET: false,
+    "AERONET": false,
     "Open AQ": false,
     "African AQE": false,
   });
@@ -215,10 +215,14 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
   // Update enabled markers when group changes
   useEffect(() => {
-    Object.keys(enabledMarkers).forEach((group) => {
-      const key = group as keyof typeof enabledMarkers;
-      enabledMarkers[key] = selectedGroup.includes(group);
-    });
+    const updatedMarkers = {
+      "DoS Missions": selectedGroup.includes("DoS Missions"),
+      "AERONET": selectedGroup.includes("AERONET"),
+      "Open AQ": selectedGroup.includes("Open AQ"),
+      "African AQE": selectedGroup.includes("African AQE"),
+    };
+
+    setEnabledMarkers(updatedMarkers);
     setRefreshMarkers(true);
   }, [selectedGroup]);
 
