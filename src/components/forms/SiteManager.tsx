@@ -224,49 +224,27 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           csvBase.innerHTML = response.data;
           const locationData = csvBase.textContent?.split("\n").slice(2).join("\n");
           const data = csvToJSON(locationData || "");
-
-          // Load coordinates from out.csv
-          const location_file = await fetch("/new_web/aqforecast/out.csv")
-            .then((response) => response.text())
-            .catch((err) => {
-              console.error("Error fetching out.csv:", err);
-              return "";
-            });
-
-          // console.log("out.csv content (first 500 chars):", location_file.slice(0, 500));
-          
-          const data2 = csvToJSON(location_file);
-          data2.forEach((obj: any) => {
-            if (obj.sitename && obj.Forecast) {
-              const key = `${obj.sitename.toLowerCase()}_${obj.Forecast.toLowerCase()}`;
-              coordResult[key] = {
-                Latitude: parseFloat(obj.Latitude || "0"),
-                Longitude: parseFloat(obj.Longitude || "0"),
-              };
-            }
-          });
-          
-          const forecastMap: Record<string, string> = {};
-
-          data2.forEach((obj: any) => {
-            if (obj.sitename && obj.Forecast) {
-              const key = obj.sitename.toLowerCase().trim();
-              if (!forecastMap[key]) {
-                 forecastMap[key] = obj.Forecast;
+          try {
+            const res = await fetch("/new_web/aqforecast/out.geojson");
+            if (res.ok) {
+              const text = await res.text();
+              if (!text.trim().startsWith("<")) {
+                const geojson = JSON.parse(text);
+                geojson?.features?.forEach((feature: any) => {
+                  const { sitename, Forecast } = feature.properties || {};
+                  const [lon, lat] = feature.geometry?.coordinates || [];
+                  if (sitename && Forecast && lat && lon) {
+                    const key = `${sitename.toLowerCase()}_${Forecast.toLowerCase()}`;
+                    coordResult[key] = { Latitude: lat, Longitude: lon };
+                  }
+                });
               }
             }
-          });
-
-          data.forEach((obj: any) => {
-            const site = obj.Site_Name?.toLowerCase().trim();
-            if (site) {
-              const matchedForecast = forecastMap[site];
-              if (!obj.Forecast && matchedForecast) {
-                obj.Forecast = matchedForecast;
-              }  
-            }
-          });
-
+          } catch (err){
+            
+            console.warn("⚠️ GeoJSON file could not be loaded or parsed:", err);
+            setResponse("GeoJSON data unavailable — fallback to API data only.");
+          }
           // Fill forecast date dropdown
           const selection = setSelection(d);
           if (selection && selection.length > 0) {
