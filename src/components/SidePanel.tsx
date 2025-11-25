@@ -247,6 +247,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   // Sets default date to today, finds the nearest available forecast file,
   // and selects the nearest forecast time slot
   useEffect(() => {
+    // Only run once on mount
+    let isMounted = true;
     const today = new Date();
     setApiDate(today.toISOString());
     setType("AQI");
@@ -256,13 +258,24 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const init = async () => {
       try {
         const nearest = await nearestDate(today);
-        setApiDate(nearest.toISOString());
-        nearestTime(nearest.toISOString());
+        // Only update if component is still mounted
+        if (isMounted) {
+          setApiDate(nearest.toISOString());
+          nearestTime(nearest.toISOString());
+        }
       } catch (err) {
         console.error("nearestDate failed:", err);
+        // On error, still set today's date so app doesn't hang
+        if (isMounted) {
+          setApiDate(today.toISOString());
+        }
       }
     };
     init();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [map]);
 
   // Refresh cloud layer when date changes

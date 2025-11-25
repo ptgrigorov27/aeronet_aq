@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useMapContext } from "../MapContext";
 import L from "leaflet";
 import "leaflet-svg-shape-markers";
@@ -138,186 +138,97 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }
 
   // --- Main function: Fetch forecast data from GeoJSON files ---
-  // This function:
-  // 1. Finds the most recent available forecast file (model initialization date)
-  // 2. Fetches GeoJSON files for all enabled forecast sources
-  // 3. Parses GeoJSON features and groups them by site name
-  // 4. Sorts data by UTC_DATE to ensure Day 1, Day 2, Day 3 order
-  // 5. Updates state with readings and coordinates
+  // This function matches the old CSV/API pattern:
+  // 1. Calls nearestDate once to find valid date (stops if failed > 2)
+  // 2. Allows date override with sAPI parameter
+  // 3. Fetches GeoJSON files for all enabled forecast sources
+  // 4. Parses GeoJSON features and groups them by site name
+  // 5. Sorts data by UTC_DATE to ensure Day 1, Day 2, Day 3 order
+  // 6. Updates state with readings and coordinates
   const fetchReadings = useCallback(async (
     sAPI?: string
   ): Promise<boolean> => {
     // Temporary storage for readings and coordinates before updating state
     const readingResult: { [key: string]: ReadingRecord[] } = {};
-    let modelInitDate = new Date(); // Start with today's date
+    let d = new Date(); // Start with today's date
     const coordResult: CoordRecord = {};
 
     try {
-      // If user selected a specific date, use it as starting point
+      // Step 1: Find the latest available file on the server
+      // Use the first enabled source to find the latest file (all sources use same date)
+      let file_selected = GEOJSON_DEF; // Default to DoS Missions
+      
+      // Find first enabled source to use for date finding
+      for (const key in enabledMarkers) {
+        const typedKey = key as keyof typeof enabledMarkers;
+        if (enabledMarkers[typedKey]) {
+          file_selected = file_urls[key];
+          break;
+        }
+      }
+
+      // Allow overriding date if user selected a specific date
       if (sAPI) {
         const candidate = new Date(sAPI);
         if (!isNaN(candidate.getTime())) {
-          modelInitDate = candidate;
+          d = candidate;
         }
       }
 
-      // Step 1: Find the model initialization date
-      // The model initialization date is the date when the forecast was generated
-      // We check if today's file exists, otherwise find the most recent available file
-      // All forecast sources use the same model initialization date
-      setResponse("Finding model initialization date...");
-      
-      // Use the first enabled forecast source to find the model initialization date
-      // All forecast sources should use the same model initialization date
-      let foundInitDate: Date | null = null;
+      // Find the latest available file (searches backwards until found)
+      setResponse("Finding latest forecast file...");
+      try {
+        const [latestDate] = await nearestDate(d, file_selected, 0);
+        d = latestDate;
+        console.log(`Found latest file date: ${latestDate.toISOString().split('T')[0]}`);
+      } catch (err: any) {
+        console.warn("Could not find latest file, using today's date:", err);
+        setResponse("Warning: Could not find latest forecast file. Using today's date.");
+      }
+
+      // Step 2: Loop through enabled forecast sources and fetch data
       for (const key in enabledMarkers) {
         const typedKey = key as keyof typeof enabledMarkers;
         if (enabledMarkers[typedKey]) {
-          const file_selected = file_urls[key];
-          try {
-            // First check if today's file exists
-            const today = new Date(modelInitDate);
-            const todayYear = today.getUTCFullYear();
-            const todayMonth = String(today.getUTCMonth() + 1).padStart(2, "0");
-            const todayDate = String(today.getUTCDate()).padStart(2, "0");
-            const todayString = `${todayYear}${todayMonth}${todayDate}`;
-            const todayFilePath = `${file_selected}${todayString}_forecast.geojson`;
-            
-            try {
-              // Try to fetch today's file (with timeout to fail fast if it doesn't exist)
-              const todayResponse = await axios.get(todayFilePath, {
-                timeout: 3000,
-                validateStatus: (status: number) => status < 500
-              });
-              if (todayResponse.status === 200 && todayResponse.data && todayResponse.data.features) {
-                // Today's file exists and has data, use it
-                foundInitDate = today;
-                console.log(`Today's file exists: ${todayString}`);
-                break;
-              }
-            } catch (todayError: any) {
-              // Today's file doesn't exist (404) or has issues, find the most recent file
-              if (todayError.response?.status === 404 || todayError.code === 'ECONNABORTED') {
-                console.log(`Today's file not found (${todayString}), searching for most recent file...`);
-                try {
-                  const [recentDate] = await nearestDate(today, file_selected, 0);
-                  foundInitDate = recentDate;
-                  console.log(`Found most recent file date: ${recentDate.toISOString().split('T')[0]}`);
-                  break;
-                } catch (nearestError: any) {
-                  console.warn(`Could not find recent file for ${key}:`, nearestError);
-                  continue;
-                }
-              } else if (todayError.code === 'ERR_NETWORK' || todayError.message?.includes('CORS')) {
-                // CORS error in development - this is expected, try to find recent file anyway
-                // In production (same domain), CORS won't be an issue
-                console.log(`CORS warning in dev (expected). Today's file not accessible, searching for most recent file...`);
-                try {
-                  const [recentDate] = await nearestDate(today, file_selected, 0);
-                  foundInitDate = recentDate;
-                  console.log(`Found most recent file date: ${recentDate.toISOString().split('T')[0]}`);
-                  break;
-                } catch (nearestError: any) {
-                  // If CORS blocks everything, log but don't break - production will work
-                  console.warn(`CORS blocking file access for ${key} (dev only - will work in production):`, nearestError);
-                  continue;
-                }
-              } else {
-                // Other error - log but continue
-                console.warn(`Error checking today's file for ${key}:`, todayError);
-                continue;
-              }
-            }
-          } catch (err: any) {
-            console.warn(`Could not find date for ${key}, trying next source`);
-            continue;
-          }
-        }
-      }
-
-      // If no date found, use today as fallback
-      if (!foundInitDate) {
-        foundInitDate = modelInitDate;
-        console.warn("Could not find any forecast files, using today's date");
-      }
-
-      // Update model initialization date
-      modelInitDate = foundInitDate;
-      setInitDate(modelInitDate);
-      setFromInit(modelInitDate.getTime());
-      exInit(modelInitDate);
-
-      // Step 2: Fetch data for all enabled forecast sources
-      // Loop through each forecast source (DoS Missions, AERONET, etc.)
-      // and fetch the GeoJSON file for the model initialization date
-      for (const key in enabledMarkers) {
-        const typedKey = key as keyof typeof enabledMarkers;
-        if (enabledMarkers[typedKey]) {
-          // Get the base URL for this forecast source
-          const file_selected = file_urls[key];
+          const api_selected = file_urls[key];
           setResponse(`Fetching ${key} forecast data...`);
 
-          // Construct the file path using model initialization date
-          // Format: YYYYMMDD_forecast.geojson
-          let dateToUse = new Date(modelInitDate);
-          const year = dateToUse.getUTCFullYear();
-          const month = String(dateToUse.getUTCMonth() + 1).padStart(2, "0");
-          const date = String(dateToUse.getUTCDate()).padStart(2, "0");
-          const dateString = `${year}${month}${date}`;
+          // Construct the file path using date (matches old pattern: year, month, date)
+          const [year, month, date] = [
+            d.getUTCFullYear(),
+            d.getUTCMonth() + 1,
+            d.getUTCDate(),
+          ];
+          const dateString = `${year}${String(month).padStart(2, "0")}${String(date).padStart(2, "0")}`;
 
-          // Full file path: base URL + date string + _forecast.geojson
-          const filePath = `${file_selected}${dateString}_forecast.geojson`;
-          console.log(`Attempting to fetch: ${filePath}`);
+          // Fetch GeoJSON file (matches old pattern: axios.get with URL)
+          const filePath = `${api_selected}${dateString}_forecast.geojson`;
           let response: any = null;
+          
           try {
-            response = await axios.get(filePath, {
-              headers: {
-                'Accept': 'application/geo+json, application/json'
-              }
-            });
+            response = await axios.get(filePath);
           } catch (error: any) {
-            // Check if it's a 404 - file doesn't exist
+            // If file not found for this source, try to find latest file for this source
             if (error.response?.status === 404) {
-              setResponse(`File not found for ${key}: ${dateString}_forecast.geojson. Trying previous dates...`);
-              console.warn("404 Error - File not found:", filePath);
-              // Try going back a few days
-              let foundFile = false;
-              for (let daysBack = 1; daysBack <= 7 && !foundFile; daysBack++) {
-                const backDate = new Date(dateToUse);
-                backDate.setUTCDate(backDate.getUTCDate() - daysBack);
-                const backYear = backDate.getUTCFullYear();
-                const backMonth = String(backDate.getUTCMonth() + 1).padStart(2, "0");
-                const backDay = String(backDate.getUTCDate()).padStart(2, "0");
-                const backDateString = `${backYear}${backMonth}${backDay}`;
-                const backFilePath = `${file_selected}${backDateString}_forecast.geojson`;
-                
-                try {
-                  const backResponse = await axios.get(backFilePath);
-                  if (backResponse.data && backResponse.data.features) {
-                    response = backResponse;
-                    dateToUse = backDate;
-                    foundFile = true;
-                    console.log(`Found file ${daysBack} days back: ${backDateString}`);
-                    break;
-                  }
-                } catch (e) {
-                  // Continue to next day
-                }
-              }
-              if (!foundFile) {
-                setResponse(`No forecast files found for ${key} in the past 7 days.`);
-                console.error(`No files found for ${key}`);
+              console.warn(`File not found for ${key} at ${dateString}, searching for latest file...`);
+              try {
+                const [latestDateForSource] = await nearestDate(new Date(), api_selected, 0);
+                const latestYear = latestDateForSource.getUTCFullYear();
+                const latestMonth = String(latestDateForSource.getUTCMonth() + 1).padStart(2, "0");
+                const latestDate = String(latestDateForSource.getUTCDate()).padStart(2, "0");
+                const latestDateString = `${latestYear}${latestMonth}${latestDate}`;
+                const latestFilePath = `${api_selected}${latestDateString}_forecast.geojson`;
+                response = await axios.get(latestFilePath);
+                d = latestDateForSource; // Update d to latest found date
+                console.log(`Found latest file for ${key}: ${latestDateString}`);
+              } catch (latestError: any) {
+                console.error(`Could not find file for ${key}:`, latestError);
+                setResponse(`No forecast files found for ${key}.`);
                 continue;
               }
-            } else if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
-              // CORS error in development - expected when fetching from different domain
-              // In production (same domain), CORS won't be an issue
-              console.warn(`CORS error in dev for ${key} (expected - will work in production on same domain):`, filePath);
-              setResponse(`CORS blocking in development. Will work in production.`);
-              continue;
             } else {
+              console.error(`Error fetching ${key}:`, error);
               setResponse(`Error fetching ${key}: ${error.message || 'Unknown error'}`);
-              console.error("Fetch error for:", filePath, error);
               continue;
             }
           }
@@ -390,7 +301,16 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         }
       }
 
-      // Step 5: Update application state with fetched data
+      // Step 3: Update model initialization date
+      // Update only if it changed to prevent unnecessary re-renders
+      const newInitTime = d.getTime();
+      if (!initDate || initDate.getTime() !== newInitTime) {
+        setInitDate(d);
+        // Only call exInit - it will update fromInit in SidePanel
+        exInit(d);
+      }
+
+      // Step 4: Update application state with fetched data
       if (Object.keys(readingResult).length > 0) {
         setResponse(""); // Clear loading message on success
       } else {
@@ -399,12 +319,12 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       
       // Update forecast date dropdown options
       // Forecast dates are calculated as: Day 1 (init date), Day 2 (init + 1), Day 3 (init + 2)
-      const selection = setSelection(modelInitDate);
-          if (selection && selection.length > 0) {
-            setSelectArr(selection);
-          } else {
+      const selection = setSelection(d);
+      if (selection && selection.length > 0) {
+        setSelectArr(selection);
+      } else {
         // Fallback if date calculation fails
-            setSelectArr([
+        setSelectArr([
           "Day 1 (No data)",
           "Day 2 (No data)",
           "Day 3 (No data)",
@@ -450,15 +370,20 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     return chartData;
   }, [initDate]);
 
-  // --- Helper: Find the nearest valid GeoJSON file date ---
-  // Recursively checks if a GeoJSON file exists for the given date
-  // If not found (404), tries the previous day (up to 7 days back)
-  // Returns the date and failure count
+  // --- Helper: Find the latest available GeoJSON file date ---
+  // Recursively searches backwards from the given date until it finds a valid file
+  // Keeps searching until found or reaches 30 days back (prevents infinite loops)
+  // Returns the date of the latest available file
   async function nearestDate(
     d: Date,
     file_selected: string,
     failed = 0
   ): Promise<[Date, number]> {
+    // Limit recursion to prevent infinite loops - check max 30 days back
+    if (failed > 30) {
+      throw new Error("No recent forecast data found within 30 days.");
+    }
+    
     // Format date as YYYYMMDD
     const year = d.getUTCFullYear();
     const month = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -466,44 +391,40 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     const dateString = `${year}${month}${date}`;
     
     try {
-      // Try to fetch the GeoJSON file for this date
+      // Try to fetch the GeoJSON file for this date (with timeout)
       const filePath = `${file_selected}${dateString}_forecast.geojson`;
       const response = await axios.get(filePath, { 
-        validateStatus: (status: number) => status < 500 // Accept 404, reject 500+
+        validateStatus: (status: number) => status < 500, // Accept 404, reject 500+
+        timeout: 5000 // 5 second timeout
       });
       
       // Check if file exists and has valid data
-      if (response.status !== 200 || !response.data || !response.data.features) {
-        // File doesn't exist or is empty, try previous day
-        if (failed > 7) throw new Error("No recent forecast data found.");
-        d.setUTCDate(d.getUTCDate() - 1);
-        return nearestDate(d, file_selected, failed + 1);
+      if (response.status === 200 && response.data && response.data.features) {
+        // File found! Return the date
+        return [d, 0];
       }
-      // File found! Return the date
-      return [d, 0]; // reset failed counter on success
-    } catch (err: any) {
-      // Handle CORS errors
-      if (err.code === 'ERR_NETWORK' || err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
-        console.error("CORS Error in nearestDate:", err);
-        if (failed > 7) {
-          throw new Error("CORS policy blocking requests. Server may need to allow cross-origin access.");
-        }
-        d.setUTCDate(d.getUTCDate() - 1);
-        return nearestDate(d, file_selected, failed + 1);
-      }
-      // Handle 404 errors
-      if (err.response?.status === 404) {
-        if (failed > 7) throw new Error("No recent forecast data found.");
-        d.setUTCDate(d.getUTCDate() - 1);
-        return nearestDate(d, file_selected, failed + 1);
-      }
-      // Other errors
-      if (failed > 7) {
-      console.error("nearestDate() failed:", err);
-      return [d, failed];
-      }
+      
+      // File doesn't exist or is empty, try previous day
       d.setUTCDate(d.getUTCDate() - 1);
       return nearestDate(d, file_selected, failed + 1);
+    } catch (err: any) {
+      // Handle 404 errors - file doesn't exist, try previous day
+      if (err.response?.status === 404) {
+        d.setUTCDate(d.getUTCDate() - 1);
+        return nearestDate(d, file_selected, failed + 1);
+      }
+      // Handle CORS/network errors - try previous day
+      if (err.code === 'ERR_NETWORK' || err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
+        d.setUTCDate(d.getUTCDate() - 1);
+        return nearestDate(d, file_selected, failed + 1);
+      }
+      // Handle timeout errors - try previous day
+      if (err.code === 'ECONNABORTED') {
+        d.setUTCDate(d.getUTCDate() - 1);
+        return nearestDate(d, file_selected, failed + 1);
+      }
+      // Other errors - rethrow to be handled by caller
+      throw err;
     }
   }
 
@@ -678,8 +599,23 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }, [readings, type, time, fromInit, clearMarkers, fetchMarkers]);
 
   // Fetch new forecast data when date or enabled sources change
+  // Use a ref to prevent multiple simultaneous calls
+  const isFetchingRef = useRef(false);
   useEffect(() => {
-    fetchReadings(apiDate);
+    // Prevent multiple simultaneous fetch calls
+    if (isFetchingRef.current) {
+      console.log("fetchReadings already in progress, skipping...");
+      return;
+    }
+    
+    isFetchingRef.current = true;
+    fetchReadings(apiDate)
+      .finally(() => {
+        // Reset flag after fetch completes (success or error)
+        setTimeout(() => {
+          isFetchingRef.current = false;
+        }, 1000); // Small delay to prevent rapid re-triggering
+      });
   }, [apiDate, enabledMarkers, fetchReadings]);
 
   return null;
