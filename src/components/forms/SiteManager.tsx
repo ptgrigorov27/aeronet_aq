@@ -60,11 +60,20 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   //zoomChange,
 }) => {
   const { map } = useMapContext();
+  
+  // State: Store forecast readings for each site (grouped by site name + forecast source)
+  // Format: { "sitename_source": [Day1Data, Day2Data, Day3Data] }
   const [readings, setReadingsDEF] = useState<{ [key: string]: ReadingRecord[] }>({});
+  
+  // State: Store coordinates (lat/lon) for each site
+  // Format: { "sitename_source": { Latitude: number, Longitude: number } }
   const [coordArr, setCoordArr] = useState<CoordRecord>({});
+  
+  // State: Model initialization date (the date when forecast was generated)
   const [initDate, setInitDate] = useState<Date | null>(null);
 
-  // GeoJSON file paths for different forecast sources
+  // Map forecast source names to their GeoJSON directory URLs
+  // Used to construct file paths like: {url}YYYYMMDD_forecast.geojson
   const file_urls: { [key: string]: string } = {
     "DoS Missions": GEOJSON_DEF,
     "AERONET": GEOJSON_ARNT,
@@ -128,16 +137,23 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     );
   }
 
-  // --- Fetch station readings & site coordinates from GeoJSON files ---
+  // --- Main function: Fetch forecast data from GeoJSON files ---
+  // This function:
+  // 1. Finds the most recent available forecast file (model initialization date)
+  // 2. Fetches GeoJSON files for all enabled forecast sources
+  // 3. Parses GeoJSON features and groups them by site name
+  // 4. Sorts data by UTC_DATE to ensure Day 1, Day 2, Day 3 order
+  // 5. Updates state with readings and coordinates
   const fetchReadings = useCallback(async (
     sAPI?: string
   ): Promise<boolean> => {
+    // Temporary storage for readings and coordinates before updating state
     const readingResult: { [key: string]: ReadingRecord[] } = {};
-    let modelInitDate = new Date();
+    let modelInitDate = new Date(); // Start with today's date
     const coordResult: CoordRecord = {};
 
     try {
-      // Allow overriding date from user selection
+      // If user selected a specific date, use it as starting point
       if (sAPI) {
         const candidate = new Date(sAPI);
         if (!isNaN(candidate.getTime())) {
@@ -146,7 +162,9 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       }
 
       // Step 1: Find the model initialization date
-      // Check if today's file exists, if not find the most recent available file
+      // The model initialization date is the date when the forecast was generated
+      // We check if today's file exists, otherwise find the most recent available file
+      // All forecast sources use the same model initialization date
       setResponse("Finding model initialization date...");
       
       // Use the first enabled forecast source to find the model initialization date
@@ -229,22 +247,25 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       setFromInit(modelInitDate.getTime());
       exInit(modelInitDate);
 
-      // Step 2: Fetch data for all enabled forecast sources using the model initialization date
+      // Step 2: Fetch data for all enabled forecast sources
+      // Loop through each forecast source (DoS Missions, AERONET, etc.)
+      // and fetch the GeoJSON file for the model initialization date
       for (const key in enabledMarkers) {
         const typedKey = key as keyof typeof enabledMarkers;
         if (enabledMarkers[typedKey]) {
+          // Get the base URL for this forecast source
           const file_selected = file_urls[key];
           setResponse(`Fetching ${key} forecast data...`);
 
-          // Use the model initialization date for all sources
+          // Construct the file path using model initialization date
+          // Format: YYYYMMDD_forecast.geojson
           let dateToUse = new Date(modelInitDate);
-
           const year = dateToUse.getUTCFullYear();
           const month = String(dateToUse.getUTCMonth() + 1).padStart(2, "0");
           const date = String(dateToUse.getUTCDate()).padStart(2, "0");
           const dateString = `${year}${month}${date}`;
 
-          // Fetch GeoJSON file
+          // Full file path: base URL + date string + _forecast.geojson
           const filePath = `${file_selected}${dateString}_forecast.geojson`;
           console.log(`Attempting to fetch: ${filePath}`);
           let response: any = null;
@@ -301,55 +322,66 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             }
           }
 
+          // Validate that we received valid GeoJSON data
           if (!response || !response.data || !response.data.features) {
             setResponse("GeoJSON file is empty or invalid.");
             continue;
           }
 
+          // Extract features from GeoJSON (each feature represents one site at one forecast day)
           const geojsonData = response.data;
           const features = geojsonData.features || [];
 
-          // Group features by site name first
+          // Step 3: Parse GeoJSON features and group by site name
+          // Each GeoJSON file contains multiple features (sites) with forecast data
+          // We need to group features by site name, then sort by date to get Day 1, 2, 3
           const siteGroups: { [siteKey: string]: any[] } = {};
 
           features.forEach((feature: any) => {
+            // Skip invalid features
             if (!feature.geometry || !feature.properties) return;
 
-            const coordinates = feature.geometry.coordinates; // [lon, lat]
+            // GeoJSON coordinates are [longitude, latitude]
+            const coordinates = feature.geometry.coordinates;
             const properties = feature.properties;
             const siteName = properties.Site_Name?.toLowerCase().trim();
             
+            // Skip if missing required data
             if (!siteName || !coordinates || coordinates.length < 2) return;
 
+            // Create unique key: sitename_forecastsource (e.g., "abidjan_dos missions")
             const forecastSource = key;
             const siteKey = `${siteName}_${forecastSource.toLowerCase()}`;
             const coordKey = siteKey;
 
-            // Store coordinates (GeoJSON uses [lon, lat], Leaflet uses [lat, lon])
-            // Store only once per site (coordinates should be the same for all days)
+            // Store site coordinates (convert from [lon, lat] to {Latitude, Longitude})
+            // Coordinates are the same for all forecast days, so store only once
             if (!coordResult[coordKey]) {
               coordResult[coordKey] = {
-                Latitude: parseFloat(coordinates[1]),
-                Longitude: parseFloat(coordinates[0]),
+                Latitude: parseFloat(coordinates[1]),  // GeoJSON lat is at index 1
+                Longitude: parseFloat(coordinates[0]), // GeoJSON lon is at index 0
               };
             }
 
-            // Group by site
+            // Group features by site name
+            // Each site will have multiple features (one for each forecast day)
             if (!siteGroups[siteKey]) {
               siteGroups[siteKey] = [];
             }
             siteGroups[siteKey].push(properties);
           });
 
-          // Sort each site's features by UTC_DATE and store in readingResult
+          // Step 4: Sort each site's features by UTC_DATE to ensure correct order
+          // This ensures Day 1, Day 2, Day 3 are in the correct sequence
           for (const siteKey in siteGroups) {
             const siteFeatures = siteGroups[siteKey];
-            // Sort by UTC_DATE to ensure Day 1, Day 2, Day 3 order
+            // Sort by UTC_DATE (ascending: Day 1 -> Day 2 -> Day 3)
             siteFeatures.sort((a, b) => {
               const dateA = new Date(a.UTC_DATE || "").getTime();
               const dateB = new Date(b.UTC_DATE || "").getTime();
               return dateA - dateB;
             });
+            // Store sorted features in readingResult
             readingResult[siteKey] = siteFeatures;
           }
 
@@ -358,26 +390,28 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         }
       }
 
-      // Update state with results
+      // Step 5: Update application state with fetched data
       if (Object.keys(readingResult).length > 0) {
-      setResponse("");
+        setResponse(""); // Clear loading message on success
       } else {
         setResponse("No forecast data loaded. Check console for details.");
       }
       
-      // Set forecast date dropdown based on model initialization date
-      // Forecast dates are Day 1, Day 2, Day 3 from model initialization date
+      // Update forecast date dropdown options
+      // Forecast dates are calculated as: Day 1 (init date), Day 2 (init + 1), Day 3 (init + 2)
       const selection = setSelection(modelInitDate);
-      if (selection && selection.length > 0) {
-        setSelectArr(selection);
-      } else {
-        setSelectArr([
+          if (selection && selection.length > 0) {
+            setSelectArr(selection);
+          } else {
+        // Fallback if date calculation fails
+            setSelectArr([
           "Day 1 (No data)",
           "Day 2 (No data)",
           "Day 3 (No data)",
         ]);
       }
       
+      // Update state with coordinates and readings
       setCoordArr(coordResult);
       setReadingsDEF(readingResult);
     } catch (e: any) {
@@ -397,41 +431,55 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     return true;
   }, [enabledMarkers, file_urls, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate]);
 
-  // --- Prepare chart data for 3-day forecast ---
+  // --- Prepare chart data for 3-day forecast visualization ---
+  // Converts reading data into format expected by chart.js
+  // Creates an array of 3 objects, one for each forecast day
   const createChartData = useCallback((reading: any[]) => {
     const chartData: any[] = [{}, {}, {}];
     if (!initDate) return chartData;
+    
+    // Start from model initialization date
     const d = new Date(initDate);
     for (let day = 0; day < 3; day++) {
       d.setUTCSeconds(0);
+      // Store DAILY_AQI value with ISO date string as key
       chartData[day][d.toISOString()] = reading[day]["DAILY_AQI"];
+      // Move to next day
       d.setUTCDate(d.getUTCDate() + 1);
     }
     return chartData;
   }, [initDate]);
 
-  // --- Get nearest valid GeoJSON file date ---
+  // --- Helper: Find the nearest valid GeoJSON file date ---
+  // Recursively checks if a GeoJSON file exists for the given date
+  // If not found (404), tries the previous day (up to 7 days back)
+  // Returns the date and failure count
   async function nearestDate(
     d: Date,
     file_selected: string,
     failed = 0
   ): Promise<[Date, number]> {
+    // Format date as YYYYMMDD
     const year = d.getUTCFullYear();
     const month = String(d.getUTCMonth() + 1).padStart(2, "0");
     const date = String(d.getUTCDate()).padStart(2, "0");
     const dateString = `${year}${month}${date}`;
     
     try {
+      // Try to fetch the GeoJSON file for this date
       const filePath = `${file_selected}${dateString}_forecast.geojson`;
       const response = await axios.get(filePath, { 
-        validateStatus: (status: number) => status < 500 
+        validateStatus: (status: number) => status < 500 // Accept 404, reject 500+
       });
       
+      // Check if file exists and has valid data
       if (response.status !== 200 || !response.data || !response.data.features) {
+        // File doesn't exist or is empty, try previous day
         if (failed > 7) throw new Error("No recent forecast data found.");
         d.setUTCDate(d.getUTCDate() - 1);
         return nearestDate(d, file_selected, failed + 1);
       }
+      // File found! Return the date
       return [d, 0]; // reset failed counter on success
     } catch (err: any) {
       // Handle CORS errors
@@ -460,10 +508,12 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }
 
   // --- Plot markers on the map for each site ---
+  // Creates colored circle markers on the map based on forecast data
+  // Marker color represents AQI/PM value, size is based on zoom level
   const fetchMarkers = useCallback((type: string, time: string) => {
   let rKey: string | undefined;
   
-  // Map lowercase forecast source back to display name
+  // Map internal forecast source keys to display names
   const forecastDisplayNames: { [key: string]: string } = {
     "dos missions": "DoS Missions",
     "aeronet": "AERONET",
@@ -473,25 +523,31 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   
   if (readings) {
     try {
+      // Loop through all sites that have both coordinates and readings
       for (const key in coordArr) {
         if (Object.keys(readings).includes(key)) {
-          // Split site key into sitename + forecast source
+          // Parse site key: format is "sitename_forecastsource"
+          // Split to extract site name and forecast source
           const lastUnderscore = key.lastIndexOf("_");
           const rawName = key.slice(0, lastUnderscore);
           const rawForecast = key.slice(lastUnderscore + 1).toLowerCase();
 
+          // Convert to display format (e.g., "dos missions" -> "DoS Missions")
           const forecastSource = forecastDisplayNames[rawForecast] || rawForecast
             .split(" ")
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(" ");
           
+          // Convert site name to display format (e.g., "abidjan" -> "Abidjan")
           const siteName =
             rawName
               .split("_")
               .map(word => word.charAt(0).toUpperCase() + word.slice(1))
               .join(" ");
 
-          // --- Find correct reading column for AQI, PM, or DAILY AQI ---
+          // Find the correct data column based on type (AQI, PM, DAILY_AQI) and time
+          // For AQI/PM, need to match both type and time (e.g., "AQI_130")
+          // For DAILY_AQI, only match type (no time component)
           if (type !== "DAILY_AQI") {
             rKey = Object.keys(readings[key][0]).find(
               (x) => x.includes(type) && x.includes(time)
@@ -501,26 +557,33 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               x.includes(type)
             );
           }
-          if (!rKey) continue;
+          if (!rKey) continue; // Skip if no matching data column found
 
+          // Extract the forecast value (AQI or PM2.5)
+          // AQI values are integers, PM values are floats
           const value = type.includes("AQI")
             ? parseInt(readings[key][0][rKey])
             : parseFloat(readings[key][0][rKey]);
+          
+          // Get color based on value (green=good, yellow=moderate, red=unhealthy, etc.)
           const markerColor = setColor(value, "outter")?.toString() || "grey";
-          // const markerReference = readings[key][0];
 
+          // Display labels for different forecast types
           const markerType: { [key: string]: string } = {
             PM: "PM 2.5",
             DAILY_AQI: "DAILY AQI",
             AQI: "AQI",
           };
 
+          // Also get PM2.5 value for display in tooltip
           const pmKey = Object.keys(readings[key][0]).find(
             (x) => x.includes("PM") && x.includes(time)
           );
           const pm = pmKey ? readings[key][0][pmKey] : "0";
 
-          // --- Create map marker ---
+          // --- Create colored circle marker on the map ---
+          // Position: [latitude, longitude] (Leaflet format)
+          // Style: colored fill, white border, size based on zoom level
           const marker = L.circleMarker(
             [coordArr[key].Latitude, coordArr[key].Longitude],
             {
@@ -534,7 +597,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             } as any
           ).addTo(map!);
 
-            // --- Tooltip on hover ---
+            // --- Show tooltip popup on marker hover ---
+          // Displays site name, forecast source, AQI/PM value, and PM2.5
           marker.on("mouseover", () => {
             marker
               .bindPopup(
@@ -567,11 +631,14 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           });
 
 
-          // --- Show chart on click ---
+          // --- Show 3-day forecast chart when marker is clicked ---
           marker.on("click", () => {
+            // Set chart title with site name and source
             setClickedSite(`${siteName} (${forecastSource}) | 3-Day Forecast`);
+            // Prepare chart data (Day 1, Day 2, Day 3 AQI values)
             const chartData = createChartData(readings[key]);
             setChartData(chartData);
+            // Show chart modal after short delay
             setTimeout(() => setShowChart(true), 500);
           });
         }
@@ -583,13 +650,17 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }
   }, [readings, coordArr, type, time, markerSize, map, setClickedSite, setChartData, setShowChart, setResponse, createChartData]);
 
-  // --- React hooks for updates ---
+  // --- React hooks: Update markers when dependencies change ---
+  
+  // Update marker size when zoom level changes
   useEffect(() => {
     if (zoom) {
       updateMarkerSize(markerSize);
     }
   }, [zoom, markerSize, updateMarkerSize]);
 
+  // Refresh markers when user clicks refresh button
+  // Clears old markers, fetches new data, and plots new markers
   useEffect(() => {
     if (refreshMarkers) {
       clearMarkers();
@@ -599,11 +670,14 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     setRefreshMarkers(false);
   }, [refreshMarkers, clearMarkers, fetchReadings, fetchMarkers, apiDate, type, time]);
 
+  // Update markers when readings, type, time, or forecast date changes
+  // This re-renders markers with new data or different visualization type
   useEffect(() => {
     clearMarkers();
     fetchMarkers(type, time);
   }, [readings, type, time, fromInit, clearMarkers, fetchMarkers]);
 
+  // Fetch new forecast data when date or enabled sources change
   useEffect(() => {
     fetchReadings(apiDate);
   }, [apiDate, enabledMarkers, fetchReadings]);

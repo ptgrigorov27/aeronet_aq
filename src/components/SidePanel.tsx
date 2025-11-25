@@ -110,7 +110,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     "22:30 UTC",
   ];
 
-  // --- Chart helpers ---
+  // --- Chart helper functions ---
+  
+  // Generate date labels for chart X-axis
+  // Converts ISO date strings to formatted display strings (e.g., "Mon, 24 Nov 2025")
   function genLabels(readings: any[]): string[] {
     const labels: string[] = [];
     for (const date in readings) {
@@ -129,6 +132,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return labels;
   }
 
+  // Build chart.js data structure for 3-day forecast bar chart
+  // Extracts AQI values for Day 1, Day 2, Day 3 and assigns colors based on AQI level
   function buildChart(cData: any[]): ChartData<"bar"> {
     const labels = genLabels(cData);
     const [ds1] = cData[0] ? Array.from(Object.values(cData[0])) : [];
@@ -172,6 +177,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     };
   }
 
+  // Generate chart.js configuration options
+  // Sets up styling, labels, and axis configuration for the bar chart
   function genChartOptions(): object {
     return {
       responsive: true,
@@ -180,7 +187,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         padding: { top: 10, bottom: 10, left: 15, right: 15 },
       },
       plugins: {
-        legend: { display: false },
+        legend: { display: false }, // Hide legend (not needed for single dataset)
         datalabels: {
           font: { size: 22, weight: "bold" },
           anchor: "end",
@@ -189,17 +196,17 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       },
       scales: {
         x: {
-          grid: { display: false },
+          grid: { display: false }, // No grid lines on X-axis
           ticks: {
             color: "#000",
             font: { size: 14 },
           },
         },
         y: {
-          grid: { color: "#ddd" },
-          beginAtZero: true,
+          grid: { color: "#ddd" }, // Light gray grid lines on Y-axis
+          beginAtZero: true, // Y-axis starts at 0
           ticks: {
-            stepSize: 10,
+            stepSize: 10, // Y-axis increments of 10
           },
         },
       },
@@ -213,7 +220,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   //   return () => window.removeEventListener("resize", handleResize);
   // }, []);
 
-  // Update enabled markers when group changes
+  // --- Update enabled forecast sources when user selection changes ---
+  // Converts selected group array into boolean flags for each forecast source
+  // Triggers marker refresh to show/hide markers based on selection
   useEffect(() => {
     const updatedMarkers = {
       "DoS Missions": selectedGroup.includes("DoS Missions"),
@@ -223,23 +232,27 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     };
 
     setEnabledMarkers(updatedMarkers);
-    setRefreshMarkers(true);
+    setRefreshMarkers(true); // Trigger marker refresh
   }, [selectedGroup]);
 
-  //  NEW useEffect to ensure default forecast date is selected
+  // --- Set default forecast date selection ---
+  // When forecast dates are loaded, always default to Day 1 (first date)
   useEffect(() => {
     if (selectArr.length > 0) {
-      setInnerDate(0); // Always default to the first forecast date
+      setInnerDate(0); // Always default to the first forecast date (Day 1)
     }
   }, [selectArr]);
 
-  // Initialize API date & nearest forecast time
+  // --- Initialize application on mount ---
+  // Sets default date to today, finds the nearest available forecast file,
+  // and selects the nearest forecast time slot
   useEffect(() => {
     const today = new Date();
     setApiDate(today.toISOString());
     setType("AQI");
     nearestTime(today.toISOString());
 
+    // Find the most recent available forecast file
     const init = async () => {
       try {
         const nearest = await nearestDate(today);
@@ -288,17 +301,21 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     }
   }, [showChart, chartData]);
 
-  // --- Helpers ---
+  // --- Helper functions ---
+  
+  // Calculate the map date based on model initialization date + selected forecast day
+  // Returns date in YYYY-MM-DD format for WMS layer time parameter
   function getMapDate(): string {
     const d = new Date(fromInit);
-    d.setUTCDate(d.getUTCDate() + innerDate);
+    d.setUTCDate(d.getUTCDate() + innerDate); // Add selected forecast day offset
     return `${d.getFullYear()}-${String(d.getUTCMonth() + 1).padStart(
       2,
       "0"
     )}-${String(d.getUTCDate()).padStart(2, "0")}`;
   }
 
-  // Cloud imagery layers
+  // Create cloud/satellite imagery layer group
+  // Combines NASA VIIRS satellite imagery with map labels overlay
   function cloudLayer(): L.LayerGroup {
     const wmsLayer = L.tileLayer.wms(nonbaseMaps[0], {
       layers: "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
@@ -321,12 +338,16 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return L.layerGroup([wmsLayer, labelsLayer]);
   }
 
-  // Find nearest valid forecast date (GeoJSON file format)
+  // --- Find the nearest valid forecast date by checking GeoJSON file existence ---
+  // Recursively checks if a GeoJSON file exists for the given date
+  // If file doesn't exist (404), tries the previous day
+  // Continues until a valid file is found or error occurs
   // Note: CORS errors in development are expected. In production (same domain), CORS won't apply.
   async function nearestDate(
     initDate: Date,
     file_selected = GEOJSON_DEF
   ): Promise<Date> {
+    // Format date as YYYYMMDD for file name
     const d = new Date(initDate);
     const year = d.getUTCFullYear();
     const month = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -334,17 +355,19 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const dateString = `${year}${month}${date}`;
     
     try {
+      // Construct file path: base URL + YYYYMMDD_forecast.geojson
       const filePath = `${file_selected}${dateString}_forecast.geojson`;
       const response = await axios.get(filePath, {
-        validateStatus: (status: number) => status < 500,
-        timeout: 5000
+        validateStatus: (status: number) => status < 500, // Accept 404, reject 500+
+        timeout: 5000 // 5 second timeout
       });
       
+      // Check if file exists and has valid GeoJSON features
       if (response.status === 200 && response.data && response.data.features) {
-        return d; // File exists and has data
+        return d; // File exists and has data, return this date
       }
       
-      // File doesn't exist, try previous day
+      // File doesn't exist or is empty, try previous day
       d.setUTCDate(d.getUTCDate() - 1);
       return nearestDate(d, file_selected);
     } catch (err: any) {
@@ -372,13 +395,18 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     }
   }
 
-  // Find nearest forecast time (slot)
+  // --- Find the nearest forecast time slot ---
+  // Forecasts are available at specific times: 1:30, 4:30, 7:30, etc. UTC
+  // This function finds which time slot is closest to the current time
+  // Returns the index of the nearest time slot
   function nearestTime(dt: string): number {
     const d = new Date(dt);
+    // Convert hours and minutes to numeric format (e.g., 13:30 -> 1330)
     const hr = d.getUTCHours() * 100;
     const min = d.getUTCMinutes();
     const time = hr + min;
 
+    // Find the time slot with minimum difference from current time
     let nearestValue = timeArr[0];
     let minDifference = Math.abs(timeArr[0] - time);
     for (let i = 1; i < timeArr.length; i++) {
@@ -388,11 +416,14 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         nearestValue = i;
       }
     }
+    // Update time state with selected slot (e.g., "(1330)")
     setTime(`(${timeArr[nearestValue]})`);
     return nearestValue;
   }
 
-  // Layer controls
+  // --- Layer management functions ---
+  
+  // Add a layer group to the map
   function writeLayer(layer: L.LayerGroup): boolean {
     try {
       map?.addLayer(layer);
@@ -403,6 +434,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     }
   }
 
+  // Remove cloud/satellite layers from the map
+  // Searches for WMS layers matching our cloud imagery URLs and removes them
   function deleteLayer(layers: L.LayerGroup): boolean {
     try {
       map?.eachLayer((layer: L.Layer) => {
@@ -422,6 +455,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     }
   }
 
+  // Toggle cloud/satellite layer visibility
+  // Shows layer if hidden, hides layer if visible
   function toggleCloudLayer(): boolean {
     setIsCloudLayerVisible((prev) => !prev);
     return isCloudLayerVisible
