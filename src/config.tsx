@@ -1,8 +1,8 @@
-export const API_DEF =
-  "https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index?";
-export const API_ARNT =
-  "https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index_AERONET?";
-export const API_AQ =
-  "https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index_OpenAQ?";
-export const API_AAQE =
-  "https://aeronet.gsfc.nasa.gov/cgi-bin/web_print_air_quality_index_AFRICA?";
+export const GEOJSON_DEF =
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_DoS_geoJSON/";
+export const GEOJSON_ARNT =
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_AERONET_geoJSON/";
+export const GEOJSON_AQ =
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_OpenAQ_geoJSON/";
+export const GEOJSON_AAQE =
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_AAQE_geoJSON/";

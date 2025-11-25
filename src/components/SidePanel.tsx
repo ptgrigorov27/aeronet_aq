@@ -10,7 +10,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import Box from "@mui/material/Box";
 import dayjs, { Dayjs } from "dayjs";
 import { setTextColor, setColor } from "./Utils";
-import { API_DEF } from "./../config";
+import { GEOJSON_DEF } from "./../config";
 import Chip from "@mui/material/Chip";
 import type { ChartData } from "chart.js";
 
@@ -321,25 +321,55 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return L.layerGroup([wmsLayer, labelsLayer]);
   }
 
-  // Find nearest valid forecast date
+  // Find nearest valid forecast date (GeoJSON file format)
+  // Note: CORS errors in development are expected. In production (same domain), CORS won't apply.
   async function nearestDate(
     initDate: Date,
-    api_selected = API_DEF
+    file_selected = GEOJSON_DEF
   ): Promise<Date> {
     const d = new Date(initDate);
-    const [year, month, date] = [
-      d.getUTCFullYear(),
-      d.getUTCMonth() + 1,
-      d.getUTCDate(),
-    ];
-    const response = await axios.get(
-      `${api_selected}year=${year}&month=${month}&day=${date}`
-    );
-    if (response.data.includes("Error")) {
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const date = String(d.getUTCDate()).padStart(2, "0");
+    const dateString = `${year}${month}${date}`;
+    
+    try {
+      const filePath = `${file_selected}${dateString}_forecast.geojson`;
+      const response = await axios.get(filePath, {
+        validateStatus: (status: number) => status < 500,
+        timeout: 5000
+      });
+      
+      if (response.status === 200 && response.data && response.data.features) {
+        return d; // File exists and has data
+      }
+      
+      // File doesn't exist, try previous day
       d.setUTCDate(d.getUTCDate() - 1);
-      return nearestDate(d);
+      return nearestDate(d, file_selected);
+    } catch (err: any) {
+      // Handle 404 - file doesn't exist, try previous day
+      if (err.response?.status === 404) {
+        d.setUTCDate(d.getUTCDate() - 1);
+        return nearestDate(d, file_selected);
+      }
+      // Handle CORS errors (expected in development, won't occur in production on same domain)
+      if (err.code === 'ERR_NETWORK' || err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
+        // In development, CORS will block - try previous day
+        // In production (same domain), CORS won't be an issue
+        console.warn("CORS error in dev (expected - will work in production):", err.message);
+        d.setUTCDate(d.getUTCDate() - 1);
+        return nearestDate(d, file_selected);
+      }
+      // Handle timeout errors
+      if (err.code === 'ECONNABORTED') {
+        d.setUTCDate(d.getUTCDate() - 1);
+        return nearestDate(d, file_selected);
+      }
+      // Other errors - return current date as fallback
+      console.warn("nearestDate error, using current date:", err);
+      return d;
     }
-    return d;
   }
 
   // Find nearest forecast time (slot)

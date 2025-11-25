@@ -5,4 +5,6 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   base: "/new_web/aqforecast",
+  // Note: CORS errors in development (localhost) are expected when fetching from aeronet.gsfc.nasa.gov
+  // In production (deployed to aeronet.gsfc.nasa.gov), CORS won't apply (same domain = no CORS)
 });
