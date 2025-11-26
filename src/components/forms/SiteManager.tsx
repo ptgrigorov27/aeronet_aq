@@ -431,6 +431,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   // --- Plot markers on the map for each site ---
   // Creates colored circle markers on the map based on forecast data
   // Marker color represents AQI/PM value, size is based on zoom level
+  // Only shows markers for enabled forecast sources
   const fetchMarkers = useCallback((type: string, time: string) => {
   let rKey: string | undefined;
   
@@ -459,6 +460,11 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(" ");
           
+          // Check if this forecast source is enabled - skip if not enabled
+          if (!enabledMarkers[forecastSource as keyof typeof enabledMarkers]) {
+            continue;
+          }
+          
           // Convert site name to display format (e.g., "abidjan" -> "Abidjan")
           const siteName =
             rawName
@@ -466,15 +472,22 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               .map(word => word.charAt(0).toUpperCase() + word.slice(1))
               .join(" ");
 
+          // Get the reading for the selected forecast day (fromInit: 0=Day1, 1=Day2, 2=Day3)
+          // Ensure we have data for the selected day
+          const dayIndex = fromInit >= 0 && fromInit < readings[key].length ? fromInit : 0;
+          const dayReading = readings[key][dayIndex];
+          
+          if (!dayReading) continue; // Skip if no data for this day
+
           // Find the correct data column based on type (AQI, PM, DAILY_AQI) and time
           // For AQI/PM, need to match both type and time (e.g., "AQI_130")
           // For DAILY_AQI, only match type (no time component)
           if (type !== "DAILY_AQI") {
-            rKey = Object.keys(readings[key][0]).find(
+            rKey = Object.keys(dayReading).find(
               (x) => x.includes(type) && x.includes(time)
             );
           } else {
-            rKey = Object.keys(readings[key][0]).find((x) =>
+            rKey = Object.keys(dayReading).find((x) =>
               x.includes(type)
             );
           }
@@ -483,8 +496,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           // Extract the forecast value (AQI or PM2.5)
           // AQI values are integers, PM values are floats
           const value = type.includes("AQI")
-            ? parseInt(readings[key][0][rKey])
-            : parseFloat(readings[key][0][rKey]);
+            ? parseInt(dayReading[rKey])
+            : parseFloat(dayReading[rKey]);
           
           // Get color based on value (green=good, yellow=moderate, red=unhealthy, etc.)
           const markerColor = setColor(value, "outter")?.toString() || "grey";
@@ -497,10 +510,10 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           };
 
           // Also get PM2.5 value for display in tooltip
-          const pmKey = Object.keys(readings[key][0]).find(
+          const pmKey = Object.keys(dayReading).find(
             (x) => x.includes("PM") && x.includes(time)
           );
-          const pm = pmKey ? readings[key][0][pmKey] : "0";
+          const pm = pmKey ? dayReading[pmKey] : "0";
 
           // --- Create colored circle marker on the map ---
           // Position: [latitude, longitude] (Leaflet format)
@@ -569,7 +582,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       setResponse("API returned: No data available.");
     }
   }
-  }, [readings, coordArr, type, time, markerSize, map, setClickedSite, setChartData, setShowChart, setResponse, createChartData]);
+  }, [readings, coordArr, type, time, markerSize, map, setClickedSite, setChartData, setShowChart, setResponse, createChartData, enabledMarkers, fromInit]);
 
   // --- React hooks: Update markers when dependencies change ---
   

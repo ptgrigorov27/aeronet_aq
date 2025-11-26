@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, Button, Modal } from "react-bootstrap";
 import { useMapContext } from "./MapContext";
 import SiteManager from "./forms/SiteManager";
@@ -235,11 +235,14 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     setRefreshMarkers(true); // Trigger marker refresh
   }, [selectedGroup]);
 
-  // --- Set default forecast date selection ---
-  // When forecast dates are loaded, always default to Day 1 (first date)
+  // --- Set default forecast date selection only on initial load ---
+  // Only reset to Day 1 if selectArr is being populated for the first time
+  // Don't reset if user has manually selected a different date
+  const hasInitializedRef = useRef(false);
   useEffect(() => {
-    if (selectArr.length > 0) {
-      setInnerDate(0); // Always default to the first forecast date (Day 1)
+    if (selectArr.length > 0 && !hasInitializedRef.current) {
+      setInnerDate(0); // Default to the first forecast date (Day 1) on initial load only
+      hasInitializedRef.current = true;
     }
   }, [selectArr]);
 
