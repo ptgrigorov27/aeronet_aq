@@ -88,9 +88,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     "AERONET": false,
     "Open AQ": false,
     "African AQE": false,
+    "OpenAQ-Measurement": false,
   });
 
-  const chipNames = ["DoS Missions", "AERONET", "Open AQ", "African AQE"];
+  const chipNames = ["DoS Missions", "AERONET", "Open AQ", "African AQE", "OpenAQ-Measurement"];
 
   // External layers (NASA imagery + labels)
   const nonbaseMaps = [
@@ -134,7 +135,54 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
   // Build chart.js data structure for 3-day forecast bar chart
   // Extracts AQI values for Day 1, Day 2, Day 3 and assigns colors based on AQI level
+  // Also handles hourly measurement data (array of { hour, value } objects)
   function buildChart(cData: any[]): ChartData<"bar"> {
+    // Check if this is hourly measurement data (array of { hour, value } objects)
+    const isHourlyData = cData.length > 0 && 
+      cData[0] && 
+      typeof cData[0] === 'object' && 
+      'hour' in cData[0] && 
+      'value' in cData[0];
+
+    if (isHourlyData) {
+      // Handle hourly measurement data
+      const labels = cData.map((item: any) => item.hour || '');
+      const values = cData.map((item: any) => Number(item.value) || 0);
+
+      return {
+        labels,
+        datasets: [
+          {
+            label: "Hourly PM2.5 (µg/m³)",
+            data: values,
+            backgroundColor: values.map(val => setColor(val, "outter")?.toString() || "grey"),
+            borderColor: "white",
+            borderWidth: 2,
+            borderRadius: 6,
+            barPercentage: 0.8, // Wider bars for hourly data
+            categoryPercentage: 0.8,
+            datalabels: {
+              color: (ctx: any) => {
+                const val = ctx.dataset.data[ctx.dataIndex];
+                return setTextColor(val);
+              },
+              anchor: "center",
+              align: "center",
+              font: {
+                size: 12, // Smaller font for hourly labels
+                weight: "bold",
+              },
+              display: (ctx: any) => {
+                // Only show label if value is significant
+                return ctx.dataset.data[ctx.dataIndex] > 0;
+              },
+            },
+          },
+        ],
+      };
+    }
+
+    // Original 3-day forecast logic
     const labels = genLabels(cData);
     const [ds1] = cData[0] ? Array.from(Object.values(cData[0])) : [];
     const [ds2] = cData[1] ? Array.from(Object.values(cData[1])) : [];
@@ -179,7 +227,13 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
   // Generate chart.js configuration options
   // Sets up styling, labels, and axis configuration for the bar chart
-  function genChartOptions(): object {
+  function genChartOptions(cData: any[] = chartData): object {
+    // Check if chart data is hourly measurements (has hour property)
+    const isHourlyData = cData.length > 0 && 
+      cData[0] && 
+      typeof cData[0] === 'object' && 
+      'hour' in cData[0];
+
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -189,7 +243,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       plugins: {
         legend: { display: false }, // Hide legend (not needed for single dataset)
         datalabels: {
-          font: { size: 22, weight: "bold" },
+          font: { size: isHourlyData ? 12 : 22, weight: "bold" },
           anchor: "end",
           align: "center",
         },
@@ -199,7 +253,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           grid: { display: false }, // No grid lines on X-axis
           ticks: {
             color: "#000",
-            font: { size: 14 },
+            font: { size: isHourlyData ? 10 : 14 }, // Smaller font for hourly x-axis
+            maxRotation: isHourlyData ? 45 : 0, // Rotate labels for hourly data
+            minRotation: isHourlyData ? 45 : 0,
           },
         },
         y: {
@@ -222,14 +278,47 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
 
   // --- Update enabled forecast sources when user selection changes ---
   // Converts selected group array into boolean flags for each forecast source
+  // Implements mutual exclusivity: "Open AQ" and "OpenAQ-Measurement" cannot be selected together
   // Triggers marker refresh to show/hide markers based on selection
   useEffect(() => {
+    // Check for mutual exclusivity: Open AQ and OpenAQ-Measurement cannot be active together
+    const hasOpenAQ = selectedGroup.includes("Open AQ");
+    const hasOpenAQMeasurement = selectedGroup.includes("OpenAQ-Measurement");
+    
+    // If both are selected, keep only the most recently selected one
+    if (hasOpenAQ && hasOpenAQMeasurement) {
+      // Find which one was added last (compare indices)
+      const openAQIndex = selectedGroup.indexOf("Open AQ");
+      const measurementIndex = selectedGroup.indexOf("OpenAQ-Measurement");
+      
+      // Remove the one that was selected earlier (lower index)
+      if (openAQIndex < measurementIndex) {
+        const updated = selectedGroup.filter(name => name !== "Open AQ");
+        setSelectedGroup(updated);
+        return; // Will re-run after state update
+      } else {
+        const updated = selectedGroup.filter(name => name !== "OpenAQ-Measurement");
+        setSelectedGroup(updated);
+        return; // Will re-run after state update
+      }
+    }
+
     const updatedMarkers = {
       "DoS Missions": selectedGroup.includes("DoS Missions"),
       "AERONET": selectedGroup.includes("AERONET"),
       "Open AQ": selectedGroup.includes("Open AQ"),
       "African AQE": selectedGroup.includes("African AQE"),
+      "OpenAQ-Measurement": selectedGroup.includes("OpenAQ-Measurement"),
     };
+
+    // Debug logging only in development
+    if (import.meta.env.DEV) {
+      console.log('[SidePanel] Updating enabledMarkers:', {
+        selectedGroup,
+        updatedMarkers,
+        hasOpenAQMeasurement: selectedGroup.includes("OpenAQ-Measurement")
+      });
+    }
 
     setEnabledMarkers(updatedMarkers);
     setRefreshMarkers(true); // Trigger marker refresh
@@ -311,7 +400,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     if (showChart && chartData.length > 0) {
       setTimeout(() => {
         setChartD(buildChart(chartData));
-        setChartOptions(genChartOptions());
+        // Pass chartData to genChartOptions to detect hourly vs forecast data
+        setChartOptions(genChartOptions(chartData));
         setReady(true);
       }, 500);
     }
@@ -396,7 +486,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
         // In development, CORS will block - try previous day
         // In production (same domain), CORS won't be an issue
-        console.warn("CORS error in dev (expected - will work in production):", err.message);
+        // Use console.debug instead of console.warn to reduce console noise
+        console.debug("CORS error in dev (expected - will work in production on same domain)");
         d.setUTCDate(d.getUTCDate() - 1);
         return nearestDate(d, file_selected);
       }
@@ -595,6 +686,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           <hr className={styles.separator} />
 
           {/* Forecast selection controls */}
+          {/* Disable date/time controls when OpenAQ-Measurement is active (measurements don't use forecast dates) */}
           <div className={styles.buttonGroup}>
             {apiDate && (
               <>
@@ -604,50 +696,56 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
                   onChange={(date: Dayjs | null) => {
                     if (date) {
                       setApiDate(date.toISOString());
-                      setInnerDate(0);
+                      if (!enabledMarkers["OpenAQ-Measurement"]) {
+                        setInnerDate(0);
+                      }
                     }
                   }}
-                  label="Model Initialization"
+                  label={enabledMarkers["OpenAQ-Measurement"] ? "Measurement Date" : "Model Initialization"}
                 />
 
-                <Box className="mt-2" sx={{ minWidth: 120 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Forecast Date</InputLabel>
-                    <Select
-                      label="Forecast Date"
-                      value={innerDate}
-                      onChange={(event) =>
-                        setInnerDate(Number(event.target.value))
-                      }
-                    >
-                      {selectArr.map((val, index) => (
-                        <MenuItem key={index} value={index}>
-                          {val}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
+                {!enabledMarkers["OpenAQ-Measurement"] && (
+                  <>
+                    <Box className="mt-2" sx={{ minWidth: 120 }}>
+                      <FormControl fullWidth>
+                        <InputLabel>Forecast Date</InputLabel>
+                        <Select
+                          label="Forecast Date"
+                          value={innerDate}
+                          onChange={(event) =>
+                            setInnerDate(Number(event.target.value))
+                          }
+                        >
+                          {selectArr.map((val, index) => (
+                            <MenuItem key={index} value={index}>
+                              {val}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
 
-                {type !== "DAILY_AQI" && (
-                  <Box className="mt-2" sx={{ minWidth: 120 }}>
-                    <FormControl fullWidth>
-                      <InputLabel>Time</InputLabel>
-                      <Select
-                        label="Time"
-                        value={time}
-                        onChange={(event) =>
-                          handleTimeSelect(event.target.value)
-                        }
-                      >
-                        {selectTimeArr.map((val, index) => (
-                          <MenuItem key={index} value={`(${timeArr[index]})`}>
-                            {val}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Box>
+                    {type !== "DAILY_AQI" && (
+                      <Box className="mt-2" sx={{ minWidth: 120 }}>
+                        <FormControl fullWidth>
+                          <InputLabel>Time</InputLabel>
+                          <Select
+                            label="Time"
+                            value={time}
+                            onChange={(event) =>
+                              handleTimeSelect(event.target.value)
+                            }
+                          >
+                            {selectTimeArr.map((val, index) => (
+                              <MenuItem key={index} value={`(${timeArr[index]})`}>
+                                {val}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Box>
+                    )}
+                  </>
                 )}
 
                 <Box className="mt-2" sx={{ minWidth: 120 }}>
