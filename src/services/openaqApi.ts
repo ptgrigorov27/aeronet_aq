@@ -17,17 +17,19 @@ import axios from 'axios';
 // OpenAQ API base URL
 // In development, use proxy to avoid CORS issues
 // In production, use direct API URL (CORS won't be an issue on same domain)
-const isDevelopment = import.meta.env.DEV;
+// const isDevelopment = import.meta.env.DEV;
 // IMPORTANT: The proxy rewrites /api/openaq -> /v3, so we should NOT include /v3 in the path
 // Request: /api/openaq/sensors/123 -> Proxy rewrites to: /v3/sensors/123 -> Forwarded to: https://api.openaq.org/v3/sensors/123
-const OPENAQ_API_BASE = isDevelopment 
-  ? '/api/openaq'  // Use Vite proxy in development (proxy adds /v3 prefix)
-  : 'https://api.openaq.org/v3';  // Direct API in production (includes /v3)
+// const OPENAQ_API_BASE = isDevelopment 
+//   ? '/api/openaq'  // Use Vite proxy in development (proxy adds /v3 prefix)
+//   : 'https://api.openaq.org/v3';  // Direct API in production (includes /v3)
+
+const OPENAQ_API_BASE = "/api/openaq";
 
 // Log base URL only in development
-if (import.meta.env.DEV) {
-  console.log('[OpenAQ API] Base URL:', OPENAQ_API_BASE, 'isDevelopment:', isDevelopment);
-}
+//if (import.meta.env.DEV) {
+//  console.log('[OpenAQ API] Base URL:', OPENAQ_API_BASE, 'isDevelopment:', isDevelopment);
+//}
 
 // Get API key from environment variable
 const API_KEY = import.meta.env.VITE_OPENAQ_API_KEY;
