@@ -11,6 +11,15 @@ app.use(
   })
 );
 
+app.use("/api/openaq", (req, res, next) => {
+  // Force any "manviewer" in the URL path to "aqforecast"
+  if (req.url.includes("manviewer")) {
+    req.url = req.url.replace(/manviewer/g, "aqforecast");
+    console.log(`[PATCH] Rewriting URL to ${req.url}`);
+  }
+  next();
+});
+
 const OPENAQ_KEY = process.env.VITE_OPENAQ_API_KEY;
 
 app.get("/api/openaq/locations", async (req, res) => {
