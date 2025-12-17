@@ -3,7 +3,7 @@ import axios from "axios";
 import cors from "cors";
 
 const app = express();
-const PORT = 3000; // matching port as frontend
+const PORT = 8081; // matching port as nginx
 
 app.use(
   cors({
