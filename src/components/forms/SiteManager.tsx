@@ -178,10 +178,12 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
       // Fetch ALL locations using pagination (per team lead requirement)
       const API_KEY = import.meta.env.VITE_OPENAQ_API_KEY;
-      const isDevelopment = import.meta.env.DEV;
-      const OPENAQ_API_BASE = isDevelopment 
-        ? '/api/openaq'
-        : 'https://api.openaq.org/v3';
+      //const isDevelopment = import.meta.env.DEV;
+      //const OPENAQ_API_BASE = isDevelopment 
+      //  ? '/api/openaq'
+      //  : 'https://api.openaq.org/v3';
+
+      const OPENAQ_API_BASE = "/api/openaq";
 
       const headers: { [key: string]: string } = {};
       if (API_KEY) {
