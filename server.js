@@ -3,7 +3,7 @@ import axios from "axios";
 import cors from "cors";
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = 3000; // matching port as frontend
 
 app.use(
   cors({
