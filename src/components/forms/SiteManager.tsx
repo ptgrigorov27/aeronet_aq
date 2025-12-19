@@ -146,10 +146,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     readingResult: { [key: string]: ReadingRecord[] },
     coordResult: CoordRecord
   ): Promise<boolean> => {
-    // Debug logging only in development
-    if (import.meta.env.DEV) {
-      console.log('[SiteManager] fetchOpenAQMeasurements called', { sAPI });
-    }
+
     try {
       // Determine date to fetch (use provided date or today)
       let d = new Date();
@@ -454,11 +451,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     const readingResult: { [key: string]: ReadingRecord[] } = {};
     let d = new Date(); // Start with today's date
     const coordResult: CoordRecord = {};
-
-    // Debug logging only in development
-    if (import.meta.env.DEV) {
-      console.log('[SiteManager] fetchReadings called', { sAPI, enabledMarkers });
-    }
     
     try {
       // Check if OpenAQ-Measurement is enabled (requires different handling)
@@ -978,10 +970,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   useEffect(() => {
     // Prevent multiple simultaneous fetch calls
     if (isFetchingRef.current) {
-      // Debug logging only in development
-      if (import.meta.env.DEV) {
-        console.log("fetchReadings already in progress, skipping...");
-      }
       return;
     }
     
