@@ -17,12 +17,10 @@ import axios from 'axios';
 // OpenAQ API base URL
 // In development, use proxy to avoid CORS issues
 // In production, use direct API URL (CORS won't be an issue on same domain)
-// const isDevelopment = import.meta.env.DEV;
 // IMPORTANT: The proxy rewrites /aqi/openaq -> /v3, so we should NOT include /v3 in the path
 // Request: /aqi/openaq/sensors/123 -> Proxy rewrites to: /v3/sensors/123 -> Forwarded to: https://api.openaq.org/v3/sensors/123
 
-const OPENAQ_API_BASE = "/aqi/openaq";
-const API_KEY = import.meta.env.VITE_OPENAQ_API_KEY;
+const OPENAQ_API_BASE = '/aqi/openaq';
 
 export interface OpenAQMeasurement {
   locationId: number;
@@ -77,27 +75,19 @@ export async function fetchHourlyPM25(
   date: string,
   limit: number = 1000
 ): Promise<OpenAQMeasurement[]> {
-  if (!API_KEY) {
-    throw new Error('OpenAQ API key not found. Please set VITE_OPENAQ_API_KEY in your .env file.');
-  }
 
   try {
     // Format date for API (date_from and date_to for the specific day)
     const dateFrom = `${date}T00:00:00Z`;
     const dateTo = `${date}T23:59:59Z`;
 
-    const headers: { [key: string]: string } = {};
-    if (API_KEY) {
-      headers['X-API-Key'] = API_KEY;
-    }
+    const headers: Record<string, string> = {
+      'Accept': 'application/json'
+    };
 
     // Step 1: Fetch locations (which includes sensors info)
     // Start with fewer locations for instant display, then load more in background
     const maxLocations = Math.min(limit, 25); // Reduced to 25 for faster initial load
-    // Debug logging only in development
-    if (import.meta.env.DEV) {
-      console.log(`[OpenAQ API] Fetching locations (limited to ${maxLocations})...`);
-    }
     
     const locationsResponse = await axios.get(`${OPENAQ_API_BASE}/locations`, {
       params: {
@@ -110,11 +100,6 @@ export async function fetchHourlyPM25(
 
     const locations = locationsResponse.data?.results || [];
     
-    // Debug logging only in development
-    if (import.meta.env.DEV) {
-      console.log(`[OpenAQ API] Found ${locations.length} locations`);
-    }
-
     // Step 2: For each location, find PM2.5 sensors and fetch measurements
     const allMeasurements: OpenAQMeasurement[] = [];
 
@@ -191,15 +176,11 @@ export async function fetchHourlyPM25(
       }
     }
 
-    // Debug logging only in development
-    if (import.meta.env.DEV) {
-      console.log(`[OpenAQ API] Fetched ${allMeasurements.length} total measurements for ${date}`);
-    }
     return allMeasurements;
   } catch (error: any) {
     console.error('Error fetching OpenAQ measurements:', error);
     if (error.response?.status === 401) {
-      throw new Error('Invalid API key. Please check your VITE_OPENAQ_API_KEY in .env file.');
+      throw new Error('Invalid API key');
     }
     if (error.response?.status === 429) {
       throw new Error('Rate limit exceeded. Please wait before making more requests.');
@@ -214,17 +195,11 @@ export async function fetchHourlyPM25(
  * @returns Array of locations
  */
 export async function fetchLocations(limit: number = 10000): Promise<OpenAQLocation[]> {
-  if (!API_KEY) {
-    throw new Error('OpenAQ API key not found. Please set VITE_OPENAQ_API_KEY in your .env file.');
-  }
 
   try {
-      const headers: { [key: string]: string } = {};
-      // Always send API key header (proxy will forward it in dev)
-      if (API_KEY) {
-        headers['X-API-Key'] = API_KEY;
-      }
-
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
       const response = await axios.get(`${OPENAQ_API_BASE}/locations`, {
         params: {
           limit: limit,
@@ -242,7 +217,7 @@ export async function fetchLocations(limit: number = 10000): Promise<OpenAQLocat
   } catch (error: any) {
     console.error('Error fetching OpenAQ locations:', error);
     if (error.response?.status === 401) {
-      throw new Error('Invalid API key. Please check your VITE_OPENAQ_API_KEY in .env file.');
+      throw new Error('Invalid API key');
     }
     throw new Error(`Failed to fetch OpenAQ locations: ${error.message || 'Unknown error'}`);
   }
@@ -254,9 +229,6 @@ export async function fetchLocations(limit: number = 10000): Promise<OpenAQLocat
  * @returns Array of dates (YYYY-MM-DD format) that have data
  */
 export async function getAvailableDates(daysBack: number = 30): Promise<string[]> {
-  if (!API_KEY) {
-    throw new Error('OpenAQ API key not found. Please set VITE_OPENAQ_API_KEY in your .env file.');
-  }
 
   const availableDates: string[] = [];
   const today = new Date();
@@ -269,11 +241,9 @@ export async function getAvailableDates(daysBack: number = 30): Promise<string[]
     const dateString = checkDate.toISOString().split('T')[0];
 
     try {
-      const headers: { [key: string]: string } = {};
-      // Always send API key header (proxy will forward it in dev)
-      if (API_KEY) {
-        headers['X-API-Key'] = API_KEY;
-      }
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
 
       // Use locations endpoint to check if any location has PM2.5 sensors
       // This is a simpler check than fetching all measurements
