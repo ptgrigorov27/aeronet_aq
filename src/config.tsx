@@ -16,5 +16,4 @@ export const GEOJSON_AAQE =
   "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_AAQE_geoJSON/";
 
 // OpenAQ API base URL for measurement data
-// export const OPENAQ_API_BASE = "https://api.openaq.org/v3";
 export const OPENAQ_API_BASE = "/aqi/openaq";
