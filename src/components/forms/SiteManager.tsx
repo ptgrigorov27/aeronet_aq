@@ -177,13 +177,10 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       setResponse(`Loading OpenAQ measurement data for ${dateString}...`);
 
       // Fetch ALL locations using pagination (per team lead requirement)
-      const API_KEY = import.meta.env.VITE_OPENAQ_API_KEY;
-      const OPENAQ_API_BASE = "/aqi/openaq";
-
-      const headers: { [key: string]: string } = {};
-      if (API_KEY) {
-        headers['X-API-Key'] = API_KEY;
-      }
+      const OPENAQ_API_BASE = '/aqi/openaq';
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
 
       // Fetch all locations using pagination
       // OpenAQ API returns pagination info, so we'll fetch all pages
