@@ -395,7 +395,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       
       // Show final summary - message persists until user selects different date or closes browser
       if (hasData) {
-        setResponse(`✅ Complete: ${processedCount} locations processed | ${loadedCount} markers displayed`);
+        setResponse(`Complete: ${processedCount} locations processed | ${loadedCount} markers displayed`);
         // Message will remain until:
         // 1. User selects a different date (triggers new fetch with new message)
         // 2. User closes browser/component unmounts
@@ -435,6 +435,15 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     }
   }, [setResponse, setCoordArr, setReadingsDEF, setSelectArr, setInitDate, exInit, initDate]);
 
+  // --- Helper: Format date to elegant format (e.g., "Jan 1, 2026") ---
+  const formatDateElegant = useCallback((date: Date): string => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    return `${month} ${day}, ${year}`;
+  }, []);
+
   // --- Main function: Fetch forecast data from GeoJSON files OR OpenAQ measurements ---
   // This function matches the old CSV/API pattern:
   // 1. Calls nearestDate once to find valid date (stops if failed > 2)
@@ -472,17 +481,27 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       }
 
       // Allow overriding date if user selected a specific date
-          if (sAPI) {
-            const candidate = new Date(sAPI);
-            if (!isNaN(candidate.getTime())) {
-              d = candidate;
-            }
-          }
+      const requestedDate = new Date(d); // Store original requested date
+      if (sAPI) {
+        const candidate = new Date(sAPI);
+        if (!isNaN(candidate.getTime())) {
+          d = candidate;
+          requestedDate.setTime(candidate.getTime()); // Update requested date
+        }
+      }
 
       // Find the latest available file (searches backwards until found)
       setResponse("Finding latest forecast file...");
+      let dateChanged = false;
       try {
         const [latestDate] = await nearestDate(d, file_selected, 0);
+        // Check if the found date is different from the requested date
+        if (latestDate.getTime() !== requestedDate.getTime()) {
+          dateChanged = true;
+          const requestedDateStr = formatDateElegant(requestedDate);
+          const foundDateStr = formatDateElegant(latestDate);
+          setResponse(`${requestedDateStr} forecast not found, initializing model with latest data from ${foundDateStr}`);
+        }
         d = latestDate;
       } catch (err: any) {
         console.warn("Could not find latest file, using today's date:", err);
@@ -517,7 +536,16 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             if (error.response?.status === 404) {
               console.warn(`File not found for ${key} at ${dateString}, searching for latest file...`);
               try {
+                const currentSourceDate = new Date(d); // Store current date before searching
                 const [latestDateForSource] = await nearestDate(new Date(), api_selected, 0);
+                
+                // Check if date changed for this source
+                if (latestDateForSource.getTime() !== currentSourceDate.getTime()) {
+                  const requestedDateStr = formatDateElegant(currentSourceDate);
+                  const foundDateStr = formatDateElegant(latestDateForSource);
+                  setResponse(`${requestedDateStr} forecast not found, initializing model with latest data from ${foundDateStr}`);
+                }
+                
                 const latestYear = latestDateForSource.getUTCFullYear();
                 const latestMonth = String(latestDateForSource.getUTCMonth() + 1).padStart(2, "0");
                 const latestDate = String(latestDateForSource.getUTCDate()).padStart(2, "0");
@@ -616,7 +644,11 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
       // Step 4: Update application state with fetched data
       if (Object.keys(readingResult).length > 0) {
-        setResponse(""); // Clear loading message on success
+        // Only clear message if date didn't change (date change message should persist)
+        if (!dateChanged) {
+          setResponse(""); // Clear loading message on success
+        }
+        // If date changed, the message was already set above and should persist
       } else {
         setResponse("No forecast data loaded. Check console for details.");
       }
@@ -653,7 +685,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       return false;
     }
     return true;
-  }, [enabledMarkers, file_urls, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate, fetchOpenAQMeasurements]);
+  }, [enabledMarkers, file_urls, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate, fetchOpenAQMeasurements, formatDateElegant]);
 
   // --- Prepare chart data for 3-day forecast visualization ---
   // Converts reading data into format expected by chart.js
