@@ -634,11 +634,20 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       }
 
       // Step 3: Update model initialization date
-      // Update only if it changed to prevent unnecessary re-renders
+      // IMPORTANT: Prevent infinite loop when nearestDate auto-finds a different date
+      // Always update initDate for internal tracking (needed for charts, etc.)
+      // But ONLY call exInit when date matches request - this prevents infinite loop
       const newInitTime = d.getTime();
+      
+      // Update initDate if it changed (always needed for internal state)
       if (!initDate || initDate.getTime() !== newInitTime) {
         setInitDate(d);
-        // Only call exInit - it will update fromInit in SidePanel
+      }
+      
+      // CRITICAL: Only call exInit if date was NOT auto-corrected
+      // exInit updates state in SidePanel which triggers useEffect -> fetchReadings -> infinite loop
+      // When dateChanged is true, we skip exInit to break the loop
+      if (!dateChanged) {
         exInit(d);
       }
 
