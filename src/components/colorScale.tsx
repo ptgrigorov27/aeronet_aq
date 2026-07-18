@@ -299,22 +299,23 @@ const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
           sx={{
             position: "absolute",
             bottom: "16px",
-            left: "calc(50vw - (539.4px/2))",
+            left: "calc(50vw - (600px/2))",
             zIndex: 1000,
             pointerEvents: "auto",
-            width: "547.4px",
+            width: "600px",
             padding: "0px",
             backgroundColor: "rgba(255,255,255,0.8)",
             borderRadius: "8px",
             boxShadow: "0 0 5px rgba(0, 0, 0, 0.5)",
             textAlign: "center",
+            fontSize: "12px",
           }}
         >
           <div style={{ display: "flex" }}>
             <div
               style={{
                 borderRadius: "8px 0 0 0 ",
-                width: "49.33px",
+                flex: "0 0 60px",
                 height: "auto",
                 backgroundColor: "green",
                 padding: "5px",
@@ -324,7 +325,7 @@ const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
             </div>
             <div
               style={{
-                width: "70.65px",
+                flex: "0 0 80px",
                 height: "auto",
                 backgroundColor: "yellow",
                 padding: "5px",
@@ -334,7 +335,7 @@ const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
             </div>
             <div
               style={{
-                width: "183.28px",
+                flex: "1 1 auto",
                 height: "auto",
                 backgroundColor: "orange",
                 padding: "5px",
@@ -344,7 +345,7 @@ const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
             </div>
             <div
               style={{
-                width: "65.65px",
+                flex: "0 0 90px",
                 height: "auto",
                 color: "white",
                 backgroundColor: "red",
@@ -355,7 +356,7 @@ const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
             </div>
             <div
               style={{
-                width: "99.32px",
+                flex: "0 0 110px",
                 height: "auto",
                 color: "white",
                 backgroundColor: "purple",
@@ -367,8 +368,8 @@ const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
             <div
               style={{
                 borderRadius: "0 8px 0 0 ",
-                width: "79.2px",
-                height: "maroon",
+                flex: "0 0 80px",
+                height: "auto",
                 color: "white",
                 backgroundColor: "#b91c1c",
                 padding: "5px",
@@ -377,31 +378,32 @@ const ColorLegend: React.FC<ColorLegendProps> = ({ type }) => {
               Hazardous
             </div>
           </div>
+          {/* EPA 2024 PM2.5 AQI concentration breakpoints (µg/m³) */}
           <div style={{ display: "flex" }}>
-            <div style={{ width: "49.33px", height: "auto", padding: "2px" }}>
-              0-12
+            <div style={{ flex: "0 0 60px", height: "auto", padding: "2px" }}>
+              0-9
             </div>
-            <div style={{ width: "70.65px", height: "auto", padding: "2px" }}>
-              13-35
+            <div style={{ flex: "0 0 80px", height: "auto", padding: "2px" }}>
+              9.1-35.4
             </div>
-            <div style={{ width: "183.28px", height: "auto", padding: "2px" }}>
-              36-55
+            <div style={{ flex: "1 1 auto", height: "auto", padding: "2px" }}>
+              35.5-55.4
             </div>
-            <div style={{ width: "65.65px", height: "auto", padding: "2px" }}>
-              56-150
+            <div style={{ flex: "0 0 90px", height: "auto", padding: "2px" }}>
+              55.5-125.4
             </div>
-            <div style={{ width: "99.32px", height: "auto", padding: "2px" }}>
-              151-250
+            <div style={{ flex: "0 0 110px", height: "auto", padding: "2px" }}>
+              125.5-225.4
             </div>
             <div
               style={{
                 borderRadius: "0 0 8px 0",
-                width: "79.2px",
+                flex: "0 0 80px",
                 height: "auto",
                 padding: "2px",
               }}
             >
-              251+
+              225.5+
             </div>
           </div>
         </Box>

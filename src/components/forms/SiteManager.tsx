@@ -499,8 +499,11 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             ? parseInt(dayReading[rKey])
             : parseFloat(dayReading[rKey]);
           
-          // Get color based on value (green=good, yellow=moderate, red=unhealthy, etc.)
-          const markerColor = setColor(value, "outter")?.toString() || "grey";
+          // Color by AQI index or EPA 2024 PM2.5 µg/m³ breakpoints
+          const valueScale = type === "PM" ? "PM" : "AQI";
+          const markerColor =
+            setColor(value, "outter", valueScale)?.toString() || "grey";
+
 
           // Display labels for different forecast types
           const markerType: { [key: string]: string } = {
