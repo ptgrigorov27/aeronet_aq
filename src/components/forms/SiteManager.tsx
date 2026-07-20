@@ -369,7 +369,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           (x) => x.includes("PM") && x.includes(time)
         );
         const raw = pmKey != null ? Number(dayReading[pmKey]) : NaN;
-        value = Number.isFinite(raw) ? Number(raw.toFixed(2)) : null;
+        value = Number.isFinite(raw) ? Math.ceil(raw) : null;
       }
       chartData[day][d.toISOString()] = value;
       // Move to next day
@@ -511,7 +511,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           const valueScale = type === "PM" ? "PM" : "AQI";
           const displayValue =
             valueScale === "PM" && Number.isFinite(value)
-              ? Number(value.toFixed(2))
+              ? Math.ceil(value)
               : value;
           const markerColor =
             setColor(value, "outter", valueScale)?.toString() || "grey";

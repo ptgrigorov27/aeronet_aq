@@ -146,11 +146,11 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const valueScale = type === "PM" ? "PM" : "AQI";
     const chartLabel =
       type === "PM" ? "3-Day PM2.5 Forecast" : "3-Day AQI Forecast";
-    // PM: 2 decimal places; AQI: whole numbers
+    // PM: whole numbers (round up); AQI: whole numbers
     const chartValues =
       valueScale === "PM"
         ? [n1, n2, n3].map((n) =>
-            Number.isFinite(n) ? Number(n.toFixed(2)) : n
+            Number.isFinite(n) ? Math.ceil(n) : n
           )
         : [n1, n2, n3].map((n) =>
             Number.isFinite(n) ? Math.round(n) : n
@@ -177,10 +177,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
               const val = ctx.dataset.data[ctx.dataIndex];
               return setTextColor(val, valueScale);
             },
-            formatter: (val: number) =>
-              valueScale === "PM" && Number.isFinite(val)
-                ? val.toFixed(2)
-                : String(val),
+            formatter: (val: number) => String(val),
             anchor: "center",
             align: "center",
             font: {
