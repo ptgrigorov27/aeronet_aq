@@ -560,11 +560,11 @@ const SiteManager: React.FC<SiteManagerProps> = ({
                     <span style="font-size: 16px;">
                       <b>${markerType[type]}:</b> ${value}
                     </span>
-                    /*
+                    <!--
                     <span style="font-size: 16px;">
                       <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
                     </span>
-                    */
+                    -->
                   </div>
                 </div>`
               )
