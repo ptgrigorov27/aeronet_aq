@@ -75,6 +75,9 @@ export function setTextColor(value: number, scale: ValueScale = "AQI"): string {
     if (value <= 9.0) return "white";
     if (value <= 35.4) return "black";
     if (value <= 55.4) return "black";
+    if (value <= 125.4) return "white";
+    if (value <= 225.4) return "white"; 
+
     return "white";
   }
 
