@@ -353,7 +353,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
   // --- Prepare chart data for 3-day forecast visualization ---
   // Converts reading data into format expected by chart.js
-  // Creates an array of 3 objects, one for each forecast day
+  // Uses DAILY_AQI for AQI types, or time-matched PM for PM 2.5 type
   const createChartData = useCallback((reading: any[]) => {
     const chartData: any[] = [{}, {}, {}];
     if (!initDate) return chartData;
@@ -362,13 +362,20 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     const d = new Date(initDate);
     for (let day = 0; day < 3; day++) {
       d.setUTCSeconds(0);
-      // Store DAILY_AQI value with ISO date string as key
-      chartData[day][d.toISOString()] = reading[day]["DAILY_AQI"];
+      const dayReading = reading[day] || {};
+      let value = dayReading["DAILY_AQI"];
+      if (type === "PM") {
+        const pmKey = Object.keys(dayReading).find(
+          (x) => x.includes("PM") && x.includes(time)
+        );
+        value = pmKey ? dayReading[pmKey] : null;
+      }
+      chartData[day][d.toISOString()] = value;
       // Move to next day
       d.setUTCDate(d.getUTCDate() + 1);
     }
     return chartData;
-  }, [initDate]);
+  }, [initDate, type, time]);
 
   // --- Helper: Find the latest available GeoJSON file date ---
   // Recursively searches backwards from the given date until it finds a valid file
@@ -561,9 +568,12 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
           // --- Show 3-day forecast chart when marker is clicked ---
           marker.on("click", () => {
+            const metricLabel = type === "PM" ? "PM2.5" : "AQI";
             // Set chart title with site name and source
-            setClickedSite(`${siteName} (${forecastSource}) | 3-Day Forecast`);
-            // Prepare chart data (Day 1, Day 2, Day 3 AQI values)
+            setClickedSite(
+              `${siteName} (${forecastSource}) | 3-Day ${metricLabel} Forecast`
+            );
+            // Prepare chart data (Day 1, Day 2, Day 3 for selected Type)
             const chartData = createChartData(readings[key]);
             setChartData(chartData);
             // Show chart modal after short delay
