@@ -133,7 +133,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   }
 
   // Build chart.js data structure for 3-day forecast bar chart
-  // Extracts AQI values for Day 1, Day 2, Day 3 and assigns colors based on AQI level
+  // Uses AQI index or PM2.5 µg/m³ colors based on the selected Type
   function buildChart(cData: any[]): ChartData<"bar"> {
     const labels = genLabels(cData);
     const [ds1] = cData[0] ? Array.from(Object.values(cData[0])) : [];
@@ -143,17 +143,29 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const n1 = Number(ds1);
     const n2 = Number(ds2);
     const n3 = Number(ds3);
+    const valueScale = type === "PM" ? "PM" : "AQI";
+    const chartLabel =
+      type === "PM" ? "3-Day PM2.5 Forecast" : "3-Day AQI Forecast";
+    // PM: whole numbers (round up); AQI: whole numbers
+    const chartValues =
+      valueScale === "PM"
+        ? [n1, n2, n3].map((n) =>
+            Number.isFinite(n) ? Math.ceil(n) : n
+          )
+        : [n1, n2, n3].map((n) =>
+            Number.isFinite(n) ? Math.round(n) : n
+          );
 
     return {
       labels,
       datasets: [
         {
-          label: "3-Day AQI Forecast",
-          data: [n1, n2, n3],
+          label: chartLabel,
+          data: chartValues,
           backgroundColor: [
-            setColor(n1, "outter")?.toString() || "grey",
-            setColor(n2, "outter")?.toString() || "grey",
-            setColor(n3, "outter")?.toString() || "grey",
+            setColor(chartValues[0], "outter", valueScale)?.toString() || "grey",
+            setColor(chartValues[1], "outter", valueScale)?.toString() || "grey",
+            setColor(chartValues[2], "outter", valueScale)?.toString() || "grey",
           ],
           borderColor: "white",
           borderWidth: 2,
@@ -163,8 +175,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           datalabels: {
             color: (ctx: any) => {
               const val = ctx.dataset.data[ctx.dataIndex];
-              return setTextColor(val);
+              return setTextColor(val, valueScale);
             },
+            formatter: (val: number) => String(val),
             anchor: "center",
             align: "center",
             font: {
@@ -306,7 +319,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     };
   }, [map]);
 
-  // Build chart when site is clicked
+  // Build chart when site is clicked (or Type changes while modal is open)
   useEffect(() => {
     if (showChart && chartData.length > 0) {
       setTimeout(() => {
@@ -315,7 +328,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         setReady(true);
       }, 500);
     }
-  }, [showChart, chartData]);
+  }, [showChart, chartData, type]);
 
   // --- Helper functions ---
   
