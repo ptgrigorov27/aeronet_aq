@@ -134,7 +134,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   }
 
   // Build chart.js data structure for 3-day forecast bar chart
-  // Extracts AQI values for Day 1, Day 2, Day 3 and assigns colors based on AQI level
+  // Uses AQI index or PM2.5 µg/m³ colors based on the selected Type
   // Also handles hourly measurement data (array of { hour, value } objects)
   function buildChart(cData: any[]): ChartData<"bar"> {
     // Check if this is hourly measurement data (array of { hour, value } objects)
@@ -145,9 +145,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       'value' in cData[0];
 
     if (isHourlyData) {
-      // Handle hourly measurement data
+      // Handle hourly measurement data (PM2.5 µg/m³, integers rounded up)
       const labels = cData.map((item: any) => item.hour || '');
-      const values = cData.map((item: any) => Number(item.value) || 0);
+      const values = cData.map((item: any) => {
+        const n = Number(item.value);
+        return Number.isFinite(n) ? Math.ceil(n) : 0;
+      });
 
       return {
         labels,
@@ -155,7 +158,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           {
             label: "Hourly PM2.5 (µg/m³)",
             data: values,
-            backgroundColor: values.map(val => setColor(val, "outter")?.toString() || "grey"),
+            backgroundColor: values.map(val => setColor(val, "outter", "PM")?.toString() || "grey"),
             borderColor: "white",
             borderWidth: 2,
             borderRadius: 6,
@@ -164,8 +167,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
             datalabels: {
               color: (ctx: any) => {
                 const val = ctx.dataset.data[ctx.dataIndex];
-                return setTextColor(val);
+                return setTextColor(val, "PM");
               },
+              formatter: (val: number) => String(val),
               anchor: "center",
               align: "center",
               font: {
@@ -191,17 +195,29 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const n1 = Number(ds1);
     const n2 = Number(ds2);
     const n3 = Number(ds3);
+    const valueScale = type === "PM" ? "PM" : "AQI";
+    const chartLabel =
+      type === "PM" ? "3-Day PM2.5 Forecast" : "3-Day AQI Forecast";
+    // PM: whole numbers (round up); AQI: whole numbers
+    const chartValues =
+      valueScale === "PM"
+        ? [n1, n2, n3].map((n) =>
+            Number.isFinite(n) ? Math.ceil(n) : n
+          )
+        : [n1, n2, n3].map((n) =>
+            Number.isFinite(n) ? Math.round(n) : n
+          );
 
     return {
       labels,
       datasets: [
         {
-          label: "3-Day AQI Forecast",
-          data: [n1, n2, n3],
+          label: chartLabel,
+          data: chartValues,
           backgroundColor: [
-            setColor(n1, "outter")?.toString() || "grey",
-            setColor(n2, "outter")?.toString() || "grey",
-            setColor(n3, "outter")?.toString() || "grey",
+            setColor(chartValues[0], "outter", valueScale)?.toString() || "grey",
+            setColor(chartValues[1], "outter", valueScale)?.toString() || "grey",
+            setColor(chartValues[2], "outter", valueScale)?.toString() || "grey",
           ],
           borderColor: "white",
           borderWidth: 2,
@@ -211,8 +227,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           datalabels: {
             color: (ctx: any) => {
               const val = ctx.dataset.data[ctx.dataIndex];
-              return setTextColor(val);
+              return setTextColor(val, valueScale);
             },
+            formatter: (val: number) => String(val),
             anchor: "center",
             align: "center",
             font: {
@@ -395,7 +412,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     };
   }, [map]);
 
-  // Build chart when site is clicked
+  // Build chart when site is clicked (or Type changes while modal is open)
   useEffect(() => {
     if (showChart && chartData.length > 0) {
       setTimeout(() => {
@@ -405,7 +422,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         setReady(true);
       }, 500);
     }
-  }, [showChart, chartData]);
+  }, [showChart, chartData, type]);
 
   // --- Helper functions ---
   

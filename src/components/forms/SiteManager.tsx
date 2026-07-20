@@ -698,7 +698,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
 
   // --- Prepare chart data for 3-day forecast visualization ---
   // Converts reading data into format expected by chart.js
-  // Creates an array of 3 objects, one for each forecast day
+  // Uses DAILY_AQI for AQI types, or time-matched PM for PM 2.5 type
   const createChartData = useCallback((reading: any[]) => {
     const chartData: any[] = [{}, {}, {}];
     if (!initDate) return chartData;
@@ -707,13 +707,21 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     const d = new Date(initDate);
     for (let day = 0; day < 3; day++) {
       d.setUTCSeconds(0);
-      // Store DAILY_AQI value with ISO date string as key
-      chartData[day][d.toISOString()] = reading[day]["DAILY_AQI"];
+      const dayReading = reading[day] || {};
+      let value = dayReading["DAILY_AQI"];
+      if (type === "PM") {
+        const pmKey = Object.keys(dayReading).find(
+          (x) => x.includes("PM") && x.includes(time)
+        );
+        const raw = pmKey != null ? Number(dayReading[pmKey]) : NaN;
+        value = Number.isFinite(raw) ? Math.ceil(raw) : null;
+      }
+      chartData[day][d.toISOString()] = value;
       // Move to next day
       d.setUTCDate(d.getUTCDate() + 1);
     }
     return chartData;
-  }, [initDate]);
+  }, [initDate, type, time]);
 
   // --- Helper: Find the latest available GeoJSON file date ---
   // Recursively searches backwards from the given date until it finds a valid file
@@ -864,8 +872,15 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             ? parseInt(dayReading[rKey])
             : parseFloat(dayReading[rKey]);
           
-          // Get color based on value (green=good, yellow=moderate, red=unhealthy, etc.)
-          const markerColor = setColor(value, "outter")?.toString() || "grey";
+          // Color by AQI index or EPA 2024 PM2.5 µg/m³ breakpoints
+          const valueScale = type === "PM" ? "PM" : "AQI";
+          const displayValue =
+            valueScale === "PM" && Number.isFinite(value)
+              ? Math.ceil(value)
+              : value;
+          const markerColor =
+            setColor(value, "outter", valueScale)?.toString() || "grey";
+
 
           // Display labels for different forecast types
           const markerType: { [key: string]: string } = {
@@ -873,19 +888,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             DAILY_AQI: "DAILY AQI",
             AQI: "AQI",
           };
-
-          // Get PM2.5 value for display in tooltip
-          // For measurements, use PM_DAILY; for forecasts, find time-specific PM value
-          let pm = "0";
-          if (isMeasurement) {
-            pm = dayReading["PM_DAILY"] || dayReading[rKey] || "0";
-          } else {
-            const pmKey = Object.keys(dayReading).find(
-            (x) => x.includes("PM") && x.includes(time)
-          );
-            pm = pmKey ? dayReading[pmKey] : "0";
-          }
-
+          
           // --- Create colored circle marker on the map ---
           // Position: [latitude, longitude] (Leaflet format)
           // Style: colored fill, white border, size based on zoom level
@@ -909,7 +912,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               .bindPopup(
                 `<div style="
                   background-color: ${markerColor};
-                  color: ${setTextColor(value)};
+                  color: ${setTextColor(value, valueScale)};
                   border-radius: 10px;
                   padding: 10px 14px;
                   width: 260px;
@@ -924,10 +927,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 16px;">
-                      <b>${markerType[type]}:</b> ${value}
-                    </span>
-                    <span style="font-size: 16px;">
-                      <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
+                      <b>${markerType[type]}:</b> ${displayValue}
                     </span>
                   </div>
                 </div>`
@@ -945,26 +945,28 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               const hourlyData: any[] = [];
               const dayReading = readings[key][0]; // Measurements only have one "day"
               if (dayReading) {
-                // Extract hourly PM2.5 values
+                // Extract hourly PM2.5 values (integers, rounded up)
                 for (let hour = 0; hour < 24; hour++) {
                   const hourStr = String(hour).padStart(2, '0');
                   const pmKey = `PM_${hourStr}00`;
                   if (dayReading[pmKey]) {
+                    const raw = parseFloat(dayReading[pmKey]);
                     hourlyData.push({
                       hour: `${hourStr}:00`,
-                      value: parseFloat(dayReading[pmKey]),
+                      value: Number.isFinite(raw) ? Math.ceil(raw) : 0,
                     });
                   }
                 }
               }
-              // For now, just set empty array - chart can be enhanced later
               setChartData(hourlyData.length > 0 ? hourlyData : []);
             } else {
               // For forecasts, show 3-day forecast chart
-            setClickedSite(`${siteName} (${forecastSource}) | 3-Day Forecast`);
-              // Prepare chart data (Day 1, Day 2, Day 3 AQI values)
-            const chartData = createChartData(readings[key]);
-            setChartData(chartData);
+              const metricLabel = type === "PM" ? "PM2.5" : "AQI";
+              setClickedSite(
+                `${siteName} (${forecastSource}) | 3-Day ${metricLabel} Forecast`
+              );
+              const chartData = createChartData(readings[key]);
+              setChartData(chartData);
             }
             // Show chart modal after short delay
             setTimeout(() => setShowChart(true), 500);
