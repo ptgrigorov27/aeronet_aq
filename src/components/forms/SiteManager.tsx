@@ -543,7 +543,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               .bindPopup(
                 `<div style="
                   background-color: ${markerColor};
-                  color: ${setTextColor(value)};
+                  color: ${setTextColor(value, valueScale)};
                   border-radius: 10px;
                   padding: 10px 14px;
                   width: 260px;
