@@ -511,14 +511,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             DAILY_AQI: "DAILY AQI",
             AQI: "AQI",
           };
-
-          /*
-          // Also get PM2.5 value for display in tooltip
-          const pmKey = Object.keys(dayReading).find(
-            (x) => x.includes("PM") && x.includes(time)
-          );
-          const pm = pmKey ? dayReading[pmKey] : "0";
-          */
           
           // --- Create colored circle marker on the map ---
           // Position: [latitude, longitude] (Leaflet format)
@@ -560,11 +552,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
                     <span style="font-size: 16px;">
                       <b>${markerType[type]}:</b> ${value}
                     </span>
-                    <!--
-                    <span style="font-size: 16px;">
-                      <b>PM2.5:</b> ${parseInt(pm)} µgm<sup>-3</sup>
-                    </span>
-                    -->
                   </div>
                 </div>`
               )
