@@ -20,6 +20,7 @@ interface SiteManagerProps {
     "AERONET": boolean;
     "Open AQ": boolean;
     "African AQE": boolean;
+    "OpenAQ-Measurement": boolean;
   };
   zoom: number;
   setResponse: React.Dispatch<React.SetStateAction<string>>;
@@ -137,37 +138,18 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     );
   }
 
-  // --- Main function: Fetch forecast data from GeoJSON files ---
-  // This function matches the old CSV/API pattern:
-  // 1. Calls nearestDate once to find valid date (stops if failed > 2)
-  // 2. Allows date override with sAPI parameter
-  // 3. Fetches GeoJSON files for all enabled forecast sources
-  // 4. Parses GeoJSON features and groups them by site name
-  // 5. Sorts data by UTC_DATE to ensure Day 1, Day 2, Day 3 order
-  // 6. Updates state with readings and coordinates
-  const fetchReadings = useCallback(async (
-    sAPI?: string
+  // --- Fetch OpenAQ measurement data (actual measurements, not forecasts) ---
+  // Fetches hourly PM2.5 measurements from OpenAQ API for a specific date
+  // Formats data to match forecast data structure for consistent display
+  const fetchOpenAQMeasurements = useCallback(async (
+    sAPI: string | undefined,
+    readingResult: { [key: string]: ReadingRecord[] },
+    coordResult: CoordRecord
   ): Promise<boolean> => {
-    // Temporary storage for readings and coordinates before updating state
-    const readingResult: { [key: string]: ReadingRecord[] } = {};
-    let d = new Date(); // Start with today's date
-    const coordResult: CoordRecord = {};
 
     try {
-      // Step 1: Find the latest available file on the server
-      // Use the first enabled source to find the latest file (all sources use same date)
-      let file_selected = GEOJSON_DEF; // Default to DoS Missions
-      
-      // Find first enabled source to use for date finding
-      for (const key in enabledMarkers) {
-        const typedKey = key as keyof typeof enabledMarkers;
-        if (enabledMarkers[typedKey]) {
-          file_selected = file_urls[key];
-          break;
-        }
-      }
-
-      // Allow overriding date if user selected a specific date
+      // Determine date to fetch (use provided date or today)
+      let d = new Date();
       if (sAPI) {
         const candidate = new Date(sAPI);
         if (!isNaN(candidate.getTime())) {
@@ -175,22 +157,364 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         }
       }
 
+      const dateString = d.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      
+      // Check if date is in the future (OpenAQ only has historical data)
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      if (d > today) {
+        setResponse(`Selected date ${dateString} is in the future. OpenAQ only has historical measurement data. Please select a past date.`);
+        setCoordArr({});
+        setReadingsDEF({});
+        setSelectArr([]);
+        return false;
+      }
+      
+      // Show initial loading message
+      setResponse(`Loading OpenAQ measurement data for ${dateString}...`);
+
+      // Fetch ALL locations using pagination (per team lead requirement)
+      const OPENAQ_API_BASE = '/aqi/openaq';
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
+
+      // Fetch all locations using pagination
+      // OpenAQ API returns pagination info, so we'll fetch all pages
+      setResponse(`Fetching all OpenAQ locations...`);
+      const allLocations: any[] = [];
+      let currentPage = 1;
+      const pageSize = 100; // Max locations per page (OpenAQ API limit)
+      let hasMorePages = true;
+      let totalLocationsInDatabase = 0;
+      let firstPageFetched = false;
+
+      while (hasMorePages) {
+        try {
+          const locationsResponse = await axios.get(`${OPENAQ_API_BASE}/locations`, {
+            params: { limit: pageSize, page: currentPage },
+            headers: Object.keys(headers).length > 0 ? headers : undefined,
+            timeout: 30000,
+          });
+
+          const pageResults = locationsResponse.data?.results || [];
+          const meta = locationsResponse.data?.meta || {};
+          
+          // Get total from first page (most accurate)
+          if (!firstPageFetched && meta.found) {
+            totalLocationsInDatabase = meta.found;
+            firstPageFetched = true;
+          }
+          
+          allLocations.push(...pageResults);
+          
+          // Update total if we got it from meta
+          if (meta.found && meta.found > totalLocationsInDatabase) {
+            totalLocationsInDatabase = meta.found;
+          }
+          
+          // Check if there are more pages to fetch
+          // Continue if: (1) this page had full results, AND (2) we haven't fetched all locations yet
+          hasMorePages = pageResults.length === pageSize && allLocations.length < totalLocationsInDatabase;
+          
+          if (hasMorePages) {
+            currentPage++;
+            // Update progress message with actual totals
+            const progressMsg = totalLocationsInDatabase > 0
+              ? `Fetching all OpenAQ locations... (${allLocations.length} of ${totalLocationsInDatabase} total in database)`
+              : `Fetching all OpenAQ locations... (${allLocations.length} fetched so far)`;
+            setResponse(progressMsg);
+            // Small delay between pages to respect rate limits
+            await new Promise(resolve => setTimeout(resolve, 200));
+          } else {
+            // Last page reached
+            if (totalLocationsInDatabase > 0 && allLocations.length < totalLocationsInDatabase) {
+              console.warn(`[SiteManager] Only fetched ${allLocations.length} out of ${totalLocationsInDatabase} total locations. API may have stopped returning pages.`);
+            }
+          }
+        } catch (error: any) {
+          console.warn(`Error fetching locations page ${currentPage}:`, error.message);
+          // If we have some locations, continue with what we have
+          if (allLocations.length > 0) {
+            hasMorePages = false;
+            console.warn(`[SiteManager] Stopping pagination. Using ${allLocations.length} locations fetched so far.`);
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      const locations = allLocations;
+
+      if (locations.length === 0) {
+        setResponse(`No OpenAQ locations found for ${dateString}.`);
+        setCoordArr({});
+        setReadingsDEF({});
+        setSelectArr([]);
+        return false;
+      }
+
+      // Update message to show totals and that we're starting to load measurements
+      const locationsMsg = totalLocationsInDatabase > 0
+        ? `Found ${locations.length} locations (out of ${totalLocationsInDatabase} total in database). Starting to load measurements...`
+        : `Found ${locations.length} locations. Starting to load measurements...`;
+      setResponse(locationsMsg);
+
+      // Process locations progressively - update state as we fetch batches
+      const dateFrom = `${dateString}T00:00:00Z`;
+      const dateTo = `${dateString}T23:59:59Z`;
+      let loadedCount = 0;
+      let hasData = false;
+
+      // Process in batches - show markers as soon as first batch is ready
+      const batchSize = 5; // Process 5 locations at a time
+      const totalLocationsCount = locations.length;
+      let processedCount = 0; // Count of locations processed (regardless of data availability)
+      
+      for (let i = 0; i < locations.length; i += batchSize) {
+        const batch = locations.slice(i, i + batchSize);
+        
+        // Process batch in parallel
+        const batchResults = await Promise.all(
+          batch.map(async (location: any) => {
+            // Find PM2.5 sensors
+            const pm25Sensors = location.sensors?.filter(
+              (s: any) => s.parameter.name === 'pm25'
+            ) || [];
+
+            if (pm25Sensors.length === 0) return null;
+
+            // Fetch measurements for first PM2.5 sensor only (faster)
+            const sensor = pm25Sensors[0];
+            try {
+              const response = await axios.get(`${OPENAQ_API_BASE}/sensors/${sensor.id}/measurements`, {
+                params: { date_from: dateFrom, date_to: dateTo, limit: 100, page: 1 },
+                headers: Object.keys(headers).length > 0 ? headers : undefined,
+                timeout: 10000,
+              });
+
+              const measurements = response.data?.results || [];
+              if (measurements.length === 0) return null;
+
+              // Group by hour and calculate averages
+              const hourlyGroups = new Map<string, number[]>();
+              measurements.forEach((m: any) => {
+                const dateObj = new Date(m.period?.datetimeFrom?.utc || dateFrom);
+                const hourKey = `${String(dateObj.getUTCHours()).padStart(2, '0')}:00`;
+                if (!hourlyGroups.has(hourKey)) {
+                  hourlyGroups.set(hourKey, []);
+                }
+                hourlyGroups.get(hourKey)!.push(m.value);
+              });
+
+              const hourlyAverages = new Map<string, number>();
+              for (const [hour, values] of hourlyGroups.entries()) {
+                const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+                hourlyAverages.set(hour, avg);
+              }
+
+              if (hourlyAverages.size === 0) return null;
+
+              // Format data
+              const siteName = location.name.toLowerCase().trim().replace(/\s+/g, '_');
+              const forecastSource = "OpenAQ-Measurement";
+              const siteKey = `${siteName}_${forecastSource.toLowerCase().replace(/\s+/g, '_')}`;
+
+              const reading: ReadingRecord = {};
+              for (const [hour, avgValue] of hourlyAverages.entries()) {
+                const hourNum = parseInt(hour.split(':')[0]);
+                reading[`PM_${String(hourNum).padStart(2, '0')}00`] = avgValue.toFixed(2);
+                reading[`AQI_${String(hourNum).padStart(2, '0')}00`] = Math.round(avgValue);
+              }
+
+              const allValues = Array.from(hourlyAverages.values());
+              const dailyAvg = allValues.reduce((sum, val) => sum + val, 0) / allValues.length;
+              reading['DAILY_AQI'] = Math.round(dailyAvg);
+              reading['PM_DAILY'] = dailyAvg.toFixed(2);
+              reading['Site_Name'] = location.name;
+              reading['Country'] = location.country;
+              reading['UTC_DATE'] = dateString;
+
+              return {
+                siteKey,
+                coord: {
+                  Latitude: location.coordinates.latitude,
+                  Longitude: location.coordinates.longitude,
+                },
+                reading: [reading],
+              };
+            } catch (error: any) {
+              if (error.response?.status !== 429) {
+                console.warn(`Failed to fetch for location ${location.id}:`, error.message);
+              }
+              return null;
+            }
+          })
+        );
+
+        // Update state progressively - add batch results immediately
+        for (const result of batchResults) {
+          processedCount++; // Count all processed locations (including those without data)
+          if (result) {
+            coordResult[result.siteKey] = result.coord;
+            readingResult[result.siteKey] = result.reading;
+            loadedCount++; // Count only locations with valid data (markers displayed)
+            hasData = true;
+          }
+        }
+
+        // Update state immediately with current progress (triggers marker render)
+        setCoordArr({ ...coordResult });
+        setReadingsDEF({ ...readingResult });
+
+        // Update progress message with detailed counts
+        if (processedCount > 0) {
+          const progressMsg = processedCount < totalLocationsCount
+            ? `Processing locations: ${processedCount}/${totalLocationsCount} processed | ${loadedCount} markers displayed`
+            : `Complete: ${processedCount} locations processed | ${loadedCount} markers displayed`;
+          setResponse(progressMsg);
+        }
+
+        // Small delay between batches (reduced for speed)
+        if (i + batchSize < locations.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      if (!hasData) {
+        setResponse(`No OpenAQ measurement data available for ${dateString}. Try selecting a different date.`);
+        setCoordArr({});
+        setReadingsDEF({});
+        setSelectArr([]);
+        return false;
+      }
+
+      // Final state update
+      setCoordArr(coordResult);
+      setReadingsDEF(readingResult);
+      
+      // Show final summary - message persists until user selects different date or closes browser
+      if (hasData) {
+        setResponse(`Complete: ${processedCount} locations processed | ${loadedCount} markers displayed`);
+        // Message will remain until:
+        // 1. User selects a different date (triggers new fetch with new message)
+        // 2. User closes browser/component unmounts
+      } else {
+        setResponse(""); // Clear immediately if no data
+      }
+
+      // Update model initialization date to the selected date
+      const newInitTime = d.getTime();
+      if (!initDate || initDate.getTime() !== newInitTime) {
+        setInitDate(d);
+        exInit(d);
+      }
+
+      // For measurements, no forecast date dropdown needed
+      setSelectArr([]);
+
+      return true;
+    } catch (error: any) {
+      console.error("Error fetching OpenAQ measurements:", error);
+      // Provide more helpful error messages
+      let errorMsg = error.message || 'Failed to fetch OpenAQ measurements';
+      if (error.message?.includes('API key')) {
+        errorMsg = error.message;
+      } else if (error.message?.includes('Rate limit')) {
+        errorMsg = 'OpenAQ API rate limit exceeded. Please wait a moment and try again.';
+      } else if (error.response?.status === 401) {
+        errorMsg = 'Invalid OpenAQ API key. Please check your VITE_OPENAQ_API_KEY in .env file.';
+      } else if (error.response?.status === 429) {
+        errorMsg = 'Too many requests. Please wait before trying again.';
+      }
+      setResponse(`Error: ${errorMsg}`);
+      setCoordArr({});
+      setReadingsDEF({});
+      setSelectArr([]);
+      return false;
+    }
+  }, [setResponse, setCoordArr, setReadingsDEF, setSelectArr, setInitDate, exInit, initDate]);
+
+  // --- Helper: Format date to elegant format (e.g., "Jan 1, 2026") ---
+  const formatDateElegant = useCallback((date: Date): string => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    return `${month} ${day}, ${year}`;
+  }, []);
+
+  // --- Main function: Fetch forecast data from GeoJSON files OR OpenAQ measurements ---
+  // This function matches the old CSV/API pattern:
+  // 1. Calls nearestDate once to find valid date (stops if failed > 2)
+  // 2. Allows date override with sAPI parameter
+  // 3. Fetches GeoJSON files for all enabled forecast sources
+  // 4. OR fetches OpenAQ measurement data if OpenAQ-Measurement is enabled
+  // 5. Parses GeoJSON features and groups them by site name
+  // 6. Sorts data by UTC_DATE to ensure Day 1, Day 2, Day 3 order
+  // 7. Updates state with readings and coordinates
+  const fetchReadings = useCallback(async (
+    sAPI?: string
+  ): Promise<boolean> => {
+    // Temporary storage for readings and coordinates before updating state
+    const readingResult: { [key: string]: ReadingRecord[] } = {};
+    let d = new Date(); // Start with today's date
+    const coordResult: CoordRecord = {};
+    
+    try {
+      // Check if OpenAQ-Measurement is enabled (requires different handling)
+      if (enabledMarkers["OpenAQ-Measurement"] === true) {
+        return await fetchOpenAQMeasurements(sAPI, readingResult, coordResult);
+      }
+
+      // Step 1: Find the latest available file on the server
+      // Use the first enabled source to find the latest file (all sources use same date)
+      let file_selected = GEOJSON_DEF; // Default to DoS Missions
+      
+      // Find first enabled source to use for date finding (skip OpenAQ-Measurement)
+      for (const key in enabledMarkers) {
+        const typedKey = key as keyof typeof enabledMarkers;
+        if (enabledMarkers[typedKey] && key !== "OpenAQ-Measurement" && file_urls[key]) {
+          file_selected = file_urls[key];
+          break;
+        }
+      }
+
+      // Allow overriding date if user selected a specific date
+      const requestedDate = new Date(d); // Store original requested date
+      if (sAPI) {
+        const candidate = new Date(sAPI);
+        if (!isNaN(candidate.getTime())) {
+          d = candidate;
+          requestedDate.setTime(candidate.getTime()); // Update requested date
+        }
+      }
+
       // Find the latest available file (searches backwards until found)
       setResponse("Finding latest forecast file...");
+      let dateChanged = false;
       try {
         const [latestDate] = await nearestDate(d, file_selected, 0);
+        // Check if the found date is different from the requested date
+        if (latestDate.getTime() !== requestedDate.getTime()) {
+          dateChanged = true;
+          const requestedDateStr = formatDateElegant(requestedDate);
+          const foundDateStr = formatDateElegant(latestDate);
+          setResponse(`${requestedDateStr} forecast not found, initializing model with latest data from ${foundDateStr}`);
+        }
         d = latestDate;
-        console.log(`Found latest file date: ${latestDate.toISOString().split('T')[0]}`);
       } catch (err: any) {
         console.warn("Could not find latest file, using today's date:", err);
         setResponse("Warning: Could not find latest forecast file. Using today's date.");
       }
 
       // Step 2: Loop through enabled forecast sources and fetch data
+      // Skip OpenAQ-Measurement (handled separately above)
       for (const key in enabledMarkers) {
         const typedKey = key as keyof typeof enabledMarkers;
-        if (enabledMarkers[typedKey]) {
+        if (enabledMarkers[typedKey] && key !== "OpenAQ-Measurement") {
           const api_selected = file_urls[key];
+          if (!api_selected) continue; // Skip if no URL mapping
           setResponse(`Fetching ${key} forecast data...`);
 
           // Construct the file path using date (matches old pattern: year, month, date)
@@ -212,7 +536,16 @@ const SiteManager: React.FC<SiteManagerProps> = ({
             if (error.response?.status === 404) {
               console.warn(`File not found for ${key} at ${dateString}, searching for latest file...`);
               try {
+                const currentSourceDate = new Date(d); // Store current date before searching
                 const [latestDateForSource] = await nearestDate(new Date(), api_selected, 0);
+                
+                // Check if date changed for this source
+                if (latestDateForSource.getTime() !== currentSourceDate.getTime()) {
+                  const requestedDateStr = formatDateElegant(currentSourceDate);
+                  const foundDateStr = formatDateElegant(latestDateForSource);
+                  setResponse(`${requestedDateStr} forecast not found, initializing model with latest data from ${foundDateStr}`);
+                }
+                
                 const latestYear = latestDateForSource.getUTCFullYear();
                 const latestMonth = String(latestDateForSource.getUTCMonth() + 1).padStart(2, "0");
                 const latestDate = String(latestDateForSource.getUTCDate()).padStart(2, "0");
@@ -220,7 +553,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
                 const latestFilePath = `${api_selected}${latestDateString}_forecast.geojson`;
                 response = await axios.get(latestFilePath);
                 d = latestDateForSource; // Update d to latest found date
-                console.log(`Found latest file for ${key}: ${latestDateString}`);
               } catch (latestError: any) {
                 console.error(`Could not find file for ${key}:`, latestError);
                 setResponse(`No forecast files found for ${key}.`);
@@ -302,29 +634,42 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       }
 
       // Step 3: Update model initialization date
-      // Update only if it changed to prevent unnecessary re-renders
+      // IMPORTANT: Prevent infinite loop when nearestDate auto-finds a different date
+      // Always update initDate for internal tracking (needed for charts, etc.)
+      // But ONLY call exInit when date matches request - this prevents infinite loop
       const newInitTime = d.getTime();
+      
+      // Update initDate if it changed (always needed for internal state)
       if (!initDate || initDate.getTime() !== newInitTime) {
         setInitDate(d);
-        // Only call exInit - it will update fromInit in SidePanel
+      }
+      
+      // CRITICAL: Only call exInit if date was NOT auto-corrected
+      // exInit updates state in SidePanel which triggers useEffect -> fetchReadings -> infinite loop
+      // When dateChanged is true, we skip exInit to break the loop
+      if (!dateChanged) {
         exInit(d);
       }
 
       // Step 4: Update application state with fetched data
       if (Object.keys(readingResult).length > 0) {
-        setResponse(""); // Clear loading message on success
+        // Only clear message if date didn't change (date change message should persist)
+        if (!dateChanged) {
+          setResponse(""); // Clear loading message on success
+        }
+        // If date changed, the message was already set above and should persist
       } else {
         setResponse("No forecast data loaded. Check console for details.");
       }
       
       // Update forecast date dropdown options
       // Forecast dates are calculated as: Day 1 (init date), Day 2 (init + 1), Day 3 (init + 2)
-      const selection = setSelection(d);
-      if (selection && selection.length > 0) {
-        setSelectArr(selection);
-      } else {
+          const selection = setSelection(d);
+          if (selection && selection.length > 0) {
+            setSelectArr(selection);
+          } else {
         // Fallback if date calculation fails
-        setSelectArr([
+            setSelectArr([
           "Day 1 (No data)",
           "Day 2 (No data)",
           "Day 3 (No data)",
@@ -349,7 +694,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       return false;
     }
     return true;
-  }, [enabledMarkers, file_urls, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate]);
+  }, [enabledMarkers, file_urls, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate, fetchOpenAQMeasurements, formatDateElegant]);
 
   // --- Prepare chart data for 3-day forecast visualization ---
   // Converts reading data into format expected by chart.js
@@ -422,7 +767,13 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         return nearestDate(d, file_selected, failed + 1);
       }
       // Handle CORS/network errors - try previous day
+      // Note: CORS errors are expected in dev (localhost -> aeronet.gsfc.nasa.gov)
+      // In production (same domain), CORS won't apply
       if (err.code === 'ERR_NETWORK' || err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
+        // Only log once to reduce console noise
+        if (failed === 0) {
+          console.debug('CORS warning in dev (expected - will work in production on same domain)');
+        }
         d.setUTCDate(d.getUTCDate() - 1);
         return nearestDate(d, file_selected, failed + 1);
       }
@@ -449,6 +800,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     "aeronet": "AERONET",
     "open aq": "Open AQ",
     "african aqe": "African AQE",
+    "openaq-measurement": "OpenAQ-Measurement",
   };
   
   if (readings) {
@@ -481,16 +833,29 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               .join(" ");
 
           // Get the reading for the selected forecast day (fromInit: 0=Day1, 1=Day2, 2=Day3)
-          // Ensure we have data for the selected day
-          const dayIndex = fromInit >= 0 && fromInit < readings[key].length ? fromInit : 0;
+          // For measurements, always use index 0 (only one day available)
+          // For forecasts, use fromInit to select Day 1, 2, or 3
+          const isMeasurement = forecastSource === "OpenAQ-Measurement";
+          const dayIndex = isMeasurement ? 0 : (fromInit >= 0 && fromInit < readings[key].length ? fromInit : 0);
           const dayReading = readings[key][dayIndex];
           
           if (!dayReading) continue; // Skip if no data for this day
 
           // Find the correct data column based on type (AQI, PM, DAILY_AQI) and time
-          // For AQI/PM, need to match both type and time (e.g., "AQI_130")
+          // For measurements, always use daily average (no time selection)
+          // For forecasts, match type and time (e.g., "AQI_130")
           // For DAILY_AQI, only match type (no time component)
-          if (type !== "DAILY_AQI") {
+          if (isMeasurement) {
+            // For measurements, use daily average or PM_DAILY
+            if (type === "DAILY_AQI") {
+              rKey = "DAILY_AQI";
+            } else if (type === "PM") {
+              rKey = "PM_DAILY";
+            } else if (type === "AQI") {
+              rKey = "DAILY_AQI"; // Use daily AQI as approximation
+            }
+          } else if (type !== "DAILY_AQI") {
+            // For forecasts, match type and time
             rKey = Object.keys(dayReading).find(
               (x) => x.includes(type) && x.includes(time)
             );
@@ -499,9 +864,9 @@ const SiteManager: React.FC<SiteManagerProps> = ({
               x.includes(type)
             );
           }
-          if (!rKey) continue; // Skip if no matching data column found
+          if (!rKey || !dayReading[rKey]) continue; // Skip if no matching data column found
 
-          // Extract the forecast value (AQI or PM2.5)
+          // Extract the value (AQI or PM2.5)
           // AQI values are integers, PM values are floats
           const value = type.includes("AQI")
             ? parseInt(dayReading[rKey])
@@ -571,16 +936,38 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           });
 
 
-          // --- Show 3-day forecast chart when marker is clicked ---
+          // --- Show chart when marker is clicked ---
           marker.on("click", () => {
-            const metricLabel = type === "PM" ? "PM2.5" : "AQI";
-            // Set chart title with site name and source
-            setClickedSite(
-              `${siteName} (${forecastSource}) | 3-Day ${metricLabel} Forecast`
-            );
-            // Prepare chart data (Day 1, Day 2, Day 3 for selected Type)
-            const chartData = createChartData(readings[key]);
-            setChartData(chartData);
+            if (isMeasurement) {
+              // For measurements, show hourly data (not forecast)
+              setClickedSite(`${siteName} (${forecastSource}) | Hourly Measurements`);
+              // Create simple chart data from hourly measurements
+              const hourlyData: any[] = [];
+              const dayReading = readings[key][0]; // Measurements only have one "day"
+              if (dayReading) {
+                // Extract hourly PM2.5 values (integers, rounded up)
+                for (let hour = 0; hour < 24; hour++) {
+                  const hourStr = String(hour).padStart(2, '0');
+                  const pmKey = `PM_${hourStr}00`;
+                  if (dayReading[pmKey]) {
+                    const raw = parseFloat(dayReading[pmKey]);
+                    hourlyData.push({
+                      hour: `${hourStr}:00`,
+                      value: Number.isFinite(raw) ? Math.ceil(raw) : 0,
+                    });
+                  }
+                }
+              }
+              setChartData(hourlyData.length > 0 ? hourlyData : []);
+            } else {
+              // For forecasts, show 3-day forecast chart
+              const metricLabel = type === "PM" ? "PM2.5" : "AQI";
+              setClickedSite(
+                `${siteName} (${forecastSource}) | 3-Day ${metricLabel} Forecast`
+              );
+              const chartData = createChartData(readings[key]);
+              setChartData(chartData);
+            }
             // Show chart modal after short delay
             setTimeout(() => setShowChart(true), 500);
           });
@@ -626,7 +1013,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   useEffect(() => {
     // Prevent multiple simultaneous fetch calls
     if (isFetchingRef.current) {
-      console.log("fetchReadings already in progress, skipping...");
       return;
     }
     
