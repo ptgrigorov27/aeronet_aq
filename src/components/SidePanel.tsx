@@ -146,17 +146,26 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const valueScale = type === "PM" ? "PM" : "AQI";
     const chartLabel =
       type === "PM" ? "3-Day PM2.5 Forecast" : "3-Day AQI Forecast";
+    // PM: 2 decimal places; AQI: whole numbers
+    const chartValues =
+      valueScale === "PM"
+        ? [n1, n2, n3].map((n) =>
+            Number.isFinite(n) ? Number(n.toFixed(2)) : n
+          )
+        : [n1, n2, n3].map((n) =>
+            Number.isFinite(n) ? Math.round(n) : n
+          );
 
     return {
       labels,
       datasets: [
         {
           label: chartLabel,
-          data: [n1, n2, n3],
+          data: chartValues,
           backgroundColor: [
-            setColor(n1, "outter", valueScale)?.toString() || "grey",
-            setColor(n2, "outter", valueScale)?.toString() || "grey",
-            setColor(n3, "outter", valueScale)?.toString() || "grey",
+            setColor(chartValues[0], "outter", valueScale)?.toString() || "grey",
+            setColor(chartValues[1], "outter", valueScale)?.toString() || "grey",
+            setColor(chartValues[2], "outter", valueScale)?.toString() || "grey",
           ],
           borderColor: "white",
           borderWidth: 2,
@@ -168,6 +177,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
               const val = ctx.dataset.data[ctx.dataIndex];
               return setTextColor(val, valueScale);
             },
+            formatter: (val: number) =>
+              valueScale === "PM" && Number.isFinite(val)
+                ? val.toFixed(2)
+                : String(val),
             anchor: "center",
             align: "center",
             font: {

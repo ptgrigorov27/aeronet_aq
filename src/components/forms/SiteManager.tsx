@@ -368,7 +368,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         const pmKey = Object.keys(dayReading).find(
           (x) => x.includes("PM") && x.includes(time)
         );
-        value = pmKey ? dayReading[pmKey] : null;
+        const raw = pmKey != null ? Number(dayReading[pmKey]) : NaN;
+        value = Number.isFinite(raw) ? Number(raw.toFixed(2)) : null;
       }
       chartData[day][d.toISOString()] = value;
       // Move to next day
@@ -508,6 +509,10 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           
           // Color by AQI index or EPA 2024 PM2.5 µg/m³ breakpoints
           const valueScale = type === "PM" ? "PM" : "AQI";
+          const displayValue =
+            valueScale === "PM" && Number.isFinite(value)
+              ? Number(value.toFixed(2))
+              : value;
           const markerColor =
             setColor(value, "outter", valueScale)?.toString() || "grey";
 
@@ -557,7 +562,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 16px;">
-                      <b>${markerType[type]}:</b> ${value}
+                      <b>${markerType[type]}:</b> ${displayValue}
                     </span>
                   </div>
                 </div>`
