@@ -1,22 +1,7 @@
 import os
 import json
-import time
-import logging
 import pandas as pd
-from datetime import date, timedelta, datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-MAX_WAIT_HOURS = 12
-POLL_INTERVAL_SEC = 3600
-
-DEBUG_LOGGING = False
-
-logging.basicConfig(
-    level=logging.INFO if DEBUG_LOGGING else logging.CRITICAL,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    filename=os.path.join(os.path.dirname(os.path.realpath(__file__)),"aqi_geojson_pipeline.log"),
-    filemode="a"
-)
+from datetime import date, timedelta
 
 def df_to_geojson(df, lat_col="Lat", lon_col="Lon"):
     features = []
@@ -45,7 +30,7 @@ def df_to_geojson(df, lat_col="Lat", lon_col="Lon"):
 
 def process_station(pred_dir, aqi_dir, file_forecast, OUTDIR):
     
-    df_pred = pd.read_csv(pred_dir, low_memory=False)
+    df_pred = pd.read_csv(pred_dir, low_memory=False, on_bad_lines='skip')
     
     time_cols = [col for col in df_pred.columns if "UTC" in col]
     pm_cols = [col for col in df_pred.columns if "3HR" in col and "OLD" not in col]
@@ -103,46 +88,10 @@ def process_station(pred_dir, aqi_dir, file_forecast, OUTDIR):
     
     return None
 
-def wait_for_file(path, max_wait_hours=MAX_WAIT_HOURS, poll_interval=POLL_INTERVAL_SEC):
-
-    deadline = datetime.now() + timedelta(hours=max_wait_hours)
-    
-    while True:
-        if os.path.exists(path):
-            return True
-        if datetime.now() >= deadline:
-            return False
-        time.sleep(poll_interval)
-
-def process_one(DIR, OUTDIR, WEBDIR, current_day, file_forecast):
-
-    if DIR == "output_TCNN_AAQE":
-        file_pred = current_day + "_pred_TCNN"
-        file_aqi = current_day + "_aqi_TCNN"
-    else:
-        file_pred = current_day + "_pred"
-        file_aqi = current_day + "_aqi"
- 
-    os.makedirs(OUTDIR, exist_ok=True)
- 
-    pred_dir = os.path.join(WEBDIR, DIR, file_pred + ".csv")
-    aqi_dir = os.path.join(WEBDIR, DIR, "aqi", file_aqi + ".csv")
- 
-    logging.info(f"[{DIR}] waiting for {pred_dir}")
- 
-    if wait_for_file(pred_dir):
-        process_station(pred_dir, aqi_dir, file_forecast, OUTDIR)
-        logging.info(f"[{DIR}] processed successfully")
-        return DIR, "success"
-    else:
-        logging.warning(f"[{DIR}] timed out after {MAX_WAIT_HOURS}h waiting for {pred_dir}")
-        return DIR, "timeout"
-    
 def main():
-    
     FORECASTS = ["DoS","AERONET","OpenAQ","AAQE"]
     WEBDIR = "/var/www/html/aeronet/data_push/AQI/"
-    DIR_LIST = ['output', 'output_AERONET_site', 'output_OpenAQ_site', 'output_TCNN_AAQE']
+    DIR_LIST = ["output","output_AERONET_site","output_OpenAQ_site","output_TCNN_AAQE"]
     OUTDIR_LIST = []
     
     for forecast in FORECASTS:
@@ -150,7 +99,7 @@ def main():
         os.makedirs(temp_dir, exist_ok=True)
         OUTDIR_LIST.append(temp_dir)
         
-    start_date = date.today()
+    start_date = date(2026, 7, 11)
     current_date = start_date
     end_date = date.today()
     
@@ -159,22 +108,26 @@ def main():
         current_day = current_date.strftime("%Y%m%d")
         file_forecast = current_day+"_forecast"
         
-        with ThreadPoolExecutor(max_workers=len(DIR_LIST)) as executor:
-            futures = {
-                executor.submit(
-                    process_one, DIR, OUTDIR, WEBDIR, current_day, file_forecast
-                ): DIR
-                for DIR, OUTDIR in zip(DIR_LIST, OUTDIR_LIST)
-            }
-        
-            for future in as_completed(futures):
-                DIR = futures[future]
+        for DIR, OUTDIR in zip(DIR_LIST, OUTDIR_LIST):
+            
+            if DIR == "output_TCNN_AAQE":
+                file_pred = current_day+"_pred_TCNN"
+                file_aqi = current_day+"_aqi_TCNN"
+            else:
+                file_pred = current_day+"_pred"
+                file_aqi = current_day+"_aqi"
+                
+            os.makedirs(OUTDIR, exist_ok=True)
+            
+            pred_dir = os.path.join(WEBDIR, DIR,file_pred+".csv")
+            aqi_dir = os.path.join(WEBDIR, DIR,"aqi/",file_aqi+".csv")                
+                
+            if os.path.exists(pred_dir) and os.path.exists(aqi_dir):   
                 try:
-                    _, status = future.result()
-                except Exception as e:
-                    logging.error(f"[{DIR}] raised an exception: {e}")
+                    process_station(pred_dir, aqi_dir, file_forecast, OUTDIR)
+                except:
+                    pass
             
         current_date += timedelta(days = 1)
                     
-if __name__ == "__main__":
-    main()
+main()
