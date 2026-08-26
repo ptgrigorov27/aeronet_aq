@@ -30,7 +30,7 @@ const CustomMapLayer: React.FC = () => {
     };
 
     const basemapUrl =
-      "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png";
+      "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png?key=cb1_25xm_1_a5e5f4d895cbb1738a04b405";
     const basemapLayer = L.tileLayer.wms(basemapUrl, {
       layers: "BlueMarble_NextGeneration",
       format: "image/png",
@@ -44,7 +44,7 @@ const CustomMapLayer: React.FC = () => {
     });
 
     const references = L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png?key=cb1_25xm_1_a5e5f4d895cbb1738a04b405",
       {
         noWrap: true,
         minZoom: 3,
