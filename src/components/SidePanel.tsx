@@ -466,6 +466,14 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
   // If file doesn't exist (404), tries the previous day
   // Continues until a valid file is found or error occurs
   // Note: CORS errors in development are expected. In production (same domain), CORS won't apply.
+
+  const file_extensions: { [key: string]: string } = {
+    "DoS": GEOJSON_DEF,
+    "AERONET": GEOJSON_ARNT,
+    "OpenAQ": GEOJSON_AQ,
+    "AAQE": GEOJSON_AAQE,
+  };
+
   async function nearestDate(
     initDate: Date,
     file_selected = GEOJSON_DEF
@@ -476,10 +484,11 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const month = String(d.getUTCMonth() + 1).padStart(2, "0");
     const date = String(d.getUTCDate()).padStart(2, "0");
     const dateString = `${year}${month}${date}`;
+    const api_extension = file_extensions[key];
     
     try {
       // Construct file path: base URL + YYYYMMDD_forecast.geojson
-      const filePath = `${file_selected}${dateString}_forecast.geojson`;
+      const filePath = `${file_selected}${dateString}_forecast_${api_extension}.geojson`;
       const response = await axios.get(filePath, {
         validateStatus: (status: number) => status < 500, // Accept 404, reject 500+
         timeout: 5000 // 5 second timeout
