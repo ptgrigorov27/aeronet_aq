@@ -4,16 +4,16 @@
 
 // DoS Missions forecast data directory
 export const GEOJSON_DEF =
-  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_DoS_geoJSON/";
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/aws_output/DoS/";
 // AERONET forecast data directory
 export const GEOJSON_ARNT =
-  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_AERONET_geoJSON/";
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/aws_output/AERONET/";
 // OpenAQ forecast data directory
 export const GEOJSON_AQ =
-  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_OpenAQ_geoJSON/";
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/aws_output/OpenAQ/";
 // African AQE forecast data directory
 export const GEOJSON_AAQE =
-  "https://aeronet.gsfc.nasa.gov/data_push/AQI/output_AAQE_geoJSON/";
+  "https://aeronet.gsfc.nasa.gov/data_push/AQI/aws_output/AAQE/";
 
 // OpenAQ API base URL for measurement data
 export const OPENAQ_API_BASE = "/aqi/openaq";
