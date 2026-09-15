@@ -82,6 +82,14 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     "African AQE": GEOJSON_AAQE,
   };
 
+  const file_extensions: { [key: string]: string } = {
+    "DoS": GEOJSON_DEF,
+    "AERONET": GEOJSON_ARNT,
+    "OpenAQ": GEOJSON_AQ,
+    "AAQE": GEOJSON_AAQE,
+  };
+
+
   // --- Helper to resize markers on zoom ---
   const updateMarkerSize = useCallback((size: number) => {
     if (map) {
@@ -514,6 +522,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         const typedKey = key as keyof typeof enabledMarkers;
         if (enabledMarkers[typedKey] && key !== "OpenAQ-Measurement") {
           const api_selected = file_urls[key];
+          const api_extension = file_extensions[key];
           if (!api_selected) continue; // Skip if no URL mapping
           setResponse(`Fetching ${key} forecast data...`);
 
@@ -526,7 +535,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
           const dateString = `${year}${String(month).padStart(2, "0")}${String(date).padStart(2, "0")}`;
 
           // Fetch GeoJSON file (matches old pattern: axios.get with URL)
-          const filePath = `${api_selected}${dateString}_forecast.geojson`;
+          const filePath = `${api_selected}${dateString}_forecast_${api_extension}.geojson`;
           let response: any = null;
           
           try {
@@ -550,7 +559,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
                 const latestMonth = String(latestDateForSource.getUTCMonth() + 1).padStart(2, "0");
                 const latestDate = String(latestDateForSource.getUTCDate()).padStart(2, "0");
                 const latestDateString = `${latestYear}${latestMonth}${latestDate}`;
-                const latestFilePath = `${api_selected}${latestDateString}_forecast.geojson`;
+                const latestFilePath = `${api_selected}${latestDateString}_forecast_${api_extension}.geojson`;
                 response = await axios.get(latestFilePath);
                 d = latestDateForSource; // Update d to latest found date
               } catch (latestError: any) {
@@ -694,7 +703,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       return false;
     }
     return true;
-  }, [enabledMarkers, file_urls, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate, fetchOpenAQMeasurements, formatDateElegant]);
+  }, [enabledMarkers, file_urls, file_extensions, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate, fetchOpenAQMeasurements, formatDateElegant]);
 
   // --- Prepare chart data for 3-day forecast visualization ---
   // Converts reading data into format expected by chart.js
@@ -745,7 +754,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     
     try {
       // Try to fetch the GeoJSON file for this date (with timeout)
-      const filePath = `${file_selected}${dateString}_forecast.geojson`;
+      const filePath = `${file_selected}${dateString}_forecast_${api_extension}.geojson`;
       const response = await axios.get(filePath, { 
         validateStatus: (status: number) => status < 500, // Accept 404, reject 500+
         timeout: 5000 // 5 second timeout
