@@ -14,6 +14,8 @@ export const GEOJSON_AQ =
 // African AQE forecast data directory
 export const GEOJSON_AAQE =
   "https://aeronet.gsfc.nasa.gov/aws_aq_forecast/AAQE/";
-
+// Africa continuous gridded forecast data directory
+export const GEOJSON_AFRICA =
+  "https://aeronet.gsfc.nasa.gov/aws_aq_forecast/Africa_Grid/";
 // OpenAQ API base URL for measurement data
 export const OPENAQ_API_BASE = "/aqi/openaq";
