@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Card, Button, Modal } from "react-bootstrap";
 import { useMapContext } from "./MapContext";
 import SiteManager from "./forms/SiteManager";
@@ -470,7 +470,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return L.layerGroup([wmsLayer, labelsLayer]);
   }
 
-  // --- Find nearest valid forecast date (sequential short probes; avoid proxy storms) ---
+  // --- Find nearest valid forecast date (sequential short probes) ---
   async function nearestDate(
     initDate: Date,
     file_selected = GEOJSON_DEF
@@ -478,38 +478,19 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     const maxLookback = 21;
     const start = new Date(initDate.getTime());
 
-    const exists = async (filePath: string): Promise<boolean> => {
-      try {
-        const head = await axios.head(filePath, {
-          validateStatus: () => true,
-          timeout: 1500,
-        });
-        if (head.status === 200) return true;
-        if (head.status === 404) return false;
-      } catch {
-        /* fall through */
-      }
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 1500);
-        const res = await fetch(filePath, {
-          method: "GET",
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        clearTimeout(timer);
-        const ok = res.status === 200;
-        controller.abort();
-        return ok;
-      } catch {
-        return false;
-      }
-    };
-
     for (let i = 0; i < maxLookback; i++) {
       const date = addUtcDays(start, -i);
-      if (await exists(`${file_selected}${formatYmdUTC(date)}_forecast.geojson`)) {
-        return date;
+      const filePath = `${file_selected}${formatYmdUTC(date)}_forecast.geojson`;
+      try {
+        const res = await axios.get(filePath, {
+          validateStatus: () => true,
+          timeout: 8000,
+        });
+        if (res.status === 200 && Array.isArray(res.data?.features)) {
+          return date;
+        }
+      } catch {
+        // try previous day
       }
     }
 
@@ -517,7 +498,11 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return start;
   }
 
-  // --- Find the nearest forecast time slot ---
+  const handleExInit = useCallback((d: Date) => {
+    setFromInit(d.getTime());
+  }, []);
+
+  // --- Find nearest forecast time slot ---
   // Forecasts are available at specific times: 1:30, 4:30, 7:30, etc. UTC
   // This function finds which time slot is closest to the current time
   // Returns the index of the nearest time slot
@@ -831,7 +816,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           setFromInit={setInnerDate}
           apiDate={apiDate}
           setApiDate={setApiDate}
-          exInit={(d: Date) => setFromInit(d.getTime())}
+          exInit={handleExInit}
           setChartData={setChartData}
           setClickedSite={setClickedSite}
           setShowChart={setShowChart}

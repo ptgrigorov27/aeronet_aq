@@ -14,6 +14,15 @@ import {
   ymdKeyFromIso,
 } from "../../utils/forecastDateUtils";
 
+/** Stable URL map — must not be recreated each render (that retriggers fetch effects). */
+const FILE_URLS: { [key: string]: string } = {
+  "DoS Missions": GEOJSON_DEF,
+  AERONET: GEOJSON_ARNT,
+  "Open AQ": GEOJSON_AQ,
+  "African AQE": GEOJSON_AAQE,
+  "Africa Layers": GEOJSON_AFRICA,
+};
+
 // Props expected by SiteManager
 interface SiteManagerProps {
   exInit: (d: Date) => void;
@@ -90,16 +99,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   const apiDateRef = useRef(apiDate);
   apiDateRef.current = apiDate;
 
-  // Map forecast source names to their GeoJSON directory URLs
-  // Used to construct file paths like: {url}YYYYMMDD_forecast.geojson
-  const file_urls: { [key: string]: string } = {
-    "DoS Missions": GEOJSON_DEF,
-    "AERONET": GEOJSON_ARNT,
-    "Open AQ": GEOJSON_AQ,
-    "African AQE": GEOJSON_AAQE,
-    "Africa Layers": GEOJSON_AFRICA,
-  };
-
   // --- Helper to resize markers on zoom ---
   const updateMarkerSize = useCallback((size: number) => {
     if (map) {
@@ -145,30 +144,15 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     return buildForecastDateOptions(d);
   }
 
-  /** Fast existence check with short timeouts (avoids multi-second hangs per day). */
+  /** Existence check — prefer GET status (HEAD is often blocked/unreliable on some hosts). */
   async function forecastFileExists(filePath: string): Promise<boolean> {
     try {
-      const head = await axios.head(filePath, {
+      const get = await axios.get(filePath, {
         validateStatus: () => true,
-        timeout: 1500,
+        timeout: 8000,
       });
-      if (head.status === 200) return true;
-      if (head.status === 404) return false;
-    } catch {
-      // HEAD timed out / unsupported — try a quick status probe below
-    }
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(filePath, {
-        method: "GET",
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      clearTimeout(timer);
-      const ok = res.status === 200;
-      controller.abort(); // do not download GeoJSON body during existence checks
-      return ok;
+      // If 200 with features, treat as exists (caller may reuse this response later via separate GET)
+      return get.status === 200 && Array.isArray(get.data?.features);
     } catch {
       return false;
     }
@@ -512,8 +496,8 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       // Find first enabled source to use for date finding (skip OpenAQ-Measurement)
       for (const key in enabledMarkers) {
         const typedKey = key as keyof typeof enabledMarkers;
-        if (enabledMarkers[typedKey] && key !== "OpenAQ-Measurement" && file_urls[key]) {
-          file_selected = file_urls[key];
+        if (enabledMarkers[typedKey] && key !== "OpenAQ-Measurement" && FILE_URLS[key]) {
+          file_selected = FILE_URLS[key];
           break;
         }
       }
@@ -538,32 +522,30 @@ const SiteManager: React.FC<SiteManagerProps> = ({
         setResponse(`Checking forecast file for ${formatDateElegant(d)}...`);
       }
 
-      // HEAD first (cheap). Only GET the full GeoJSON after we know the file exists.
+      // One GET for the requested date (no separate HEAD/exists probe — avoids false negatives
+      // and double downloads that left the UI stuck on "Checking forecast file...").
       let dateChanged = false;
       let directCache: { path: string; response: any; date: Date } | null = null;
       {
         const dateString = formatYmdUTC(d);
-        const directPath = `${file_selected}${dateString}_forecast.geojson`;
-        const exists = await forecastFileExists(directPath);
-        if (exists) {
-          try {
+        const path = `${file_selected}${dateString}_forecast.geojson`;
+        try {
+          const direct = await axios.get(path, {
+            validateStatus: (status: number) => status < 500,
+            timeout: 20000,
+          });
+          if (direct.status === 200 && direct.data?.features) {
+            directCache = {
+              path,
+              response: direct,
+              date: new Date(d.getTime()),
+            };
             if (stillCurrent()) {
-              setResponse(`Downloading forecast for ${formatDateElegant(d)}...`);
+              setResponse(`Loading forecast for ${formatDateElegant(d)}...`);
             }
-            const direct = await axios.get(directPath, {
-              validateStatus: (status: number) => status < 500,
-              timeout: 20000,
-            });
-            if (direct.status === 200 && direct.data?.features) {
-              directCache = {
-                path: directPath,
-                response: direct,
-                date: new Date(d.getTime()),
-              };
-            }
-          } catch {
-            // fall through to nearestDate search
           }
+        } catch {
+          // fall through to nearestDate search
         }
       }
 
@@ -606,7 +588,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       for (const key in enabledMarkers) {
         const typedKey = key as keyof typeof enabledMarkers;
         if (enabledMarkers[typedKey] && key !== "OpenAQ-Measurement") {
-          const api_selected = file_urls[key];
+          const api_selected = FILE_URLS[key];
           if (!api_selected) continue; // Skip if no URL mapping
           setResponse(`Fetching ${key} forecast data...`);
 
@@ -779,7 +761,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
       return false;
     }
     return true;
-  }, [enabledMarkers, file_urls, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate, setApiDate, fetchOpenAQMeasurements, formatDateElegant]);
+  }, [enabledMarkers, setResponse, setCoordArr, setReadingsDEF, setFromInit, setSelectArr, exInit, setInitDate, setApiDate, fetchOpenAQMeasurements, formatDateElegant]);
 
   // --- Prepare chart data for 3-day forecast visualization ---
   // Converts reading data into format expected by chart.js
@@ -1051,18 +1033,20 @@ const SiteManager: React.FC<SiteManagerProps> = ({
   }, [readings, type, time, fromInit, clearMarkers, fetchMarkers]);
 
   // Fetch new forecast data when date or enabled sources change.
-  // Generation counter so a newer date pick always wins (no 1s lock dropping updates).
+  // Use a ref so recreating fetchReadings (e.g. parent inline callbacks) does NOT restart fetch.
+  const fetchReadingsRef = useRef(fetchReadings);
+  fetchReadingsRef.current = fetchReadings;
   useEffect(() => {
     if (skipFetchRef.current) {
       skipFetchRef.current = false;
       return;
     }
+    if (!apiDate) return;
     const gen = ++fetchGenRef.current;
-    fetchReadings(apiDate).then(() => {
-      // Stale responses from older picks are overwritten by the latest run's setState
+    fetchReadingsRef.current(apiDate).then(() => {
       void gen;
     });
-  }, [apiDate, enabledMarkers, fetchReadings]);
+  }, [apiDate, enabledMarkers]);
 
   return null;
 };
