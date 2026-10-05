@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useMapContext } from "../MapContext";
 import L from "leaflet";
 import "leaflet-svg-shape-markers";
-import { GEOJSON_ARNT, GEOJSON_AQ, GEOJSON_DEF, GEOJSON_AAQE } from "../../config";
+import { GEOJSON_ARNT, GEOJSON_AQ, GEOJSON_DEF, GEOJSON_AAQE, GEOJSON_AFRICA } from "../../config";
 import axios from "axios";
 import { setTextColor, setColor } from "../Utils";
 
@@ -20,6 +20,7 @@ interface SiteManagerProps {
     "AERONET": boolean;
     "Open AQ": boolean;
     "African AQE": boolean;
+    "Africa Layers": boolean; 
     "OpenAQ-Measurement": boolean;
   };
   zoom: number;
@@ -80,6 +81,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     "AERONET": GEOJSON_ARNT,
     "Open AQ": GEOJSON_AQ,
     "African AQE": GEOJSON_AAQE,
+    "Africa Layers": GEOJSON_AFRICA,
   };
 
   // --- Helper to resize markers on zoom ---
@@ -800,6 +802,7 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     "aeronet": "AERONET",
     "open aq": "Open AQ",
     "african aqe": "African AQE",
+    "africa layers": "Africa Layers", 
     "openaq-measurement": "OpenAQ-Measurement",
   };
   
