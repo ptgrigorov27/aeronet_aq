@@ -9,6 +9,13 @@ import Select, { SelectChangeEvent } from "@mui/material/Select";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import Box from "@mui/material/Box";
 import dayjs, { Dayjs } from "dayjs";
+import {
+  buildForecastDateOptions,
+  utcNoonIsoFromParts,
+  utcNoonIsoFromDate,
+  addUtcDays,
+  formatYmdUTC,
+} from "../utils/forecastDateUtils";
 import { setTextColor, setColor } from "./Utils";
 import { GEOJSON_DEF } from "./../config";
 import Chip from "@mui/material/Chip";
@@ -371,7 +378,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
         const nearest = await nearestDate(today);
         // Only update if component is still mounted
         if (isMounted) {
-          setApiDate(nearest.toISOString());
+          setApiDate(utcNoonIsoFromDate(nearest));
           nearestTime(nearest.toISOString());
         }
       } catch (err) {
@@ -463,62 +470,51 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     return L.layerGroup([wmsLayer, labelsLayer]);
   }
 
-  // --- Find the nearest valid forecast date by checking GeoJSON file existence ---
-  // Recursively checks if a GeoJSON file exists for the given date
-  // If file doesn't exist (404), tries the previous day
-  // Continues until a valid file is found or error occurs
-  // Note: CORS errors in development are expected. In production (same domain), CORS won't apply.
+  // --- Find nearest valid forecast date (sequential short probes; avoid proxy storms) ---
   async function nearestDate(
     initDate: Date,
     file_selected = GEOJSON_DEF
   ): Promise<Date> {
-    // Format date as YYYYMMDD for file name
-    const d = new Date(initDate);
-    const year = d.getUTCFullYear();
-    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const date = String(d.getUTCDate()).padStart(2, "0");
-    const dateString = `${year}${month}${date}`;
-    
-    try {
-      // Construct file path: base URL + YYYYMMDD_forecast.geojson
-      const filePath = `${file_selected}${dateString}_forecast.geojson`;
-      const response = await axios.get(filePath, {
-        validateStatus: (status: number) => status < 500, // Accept 404, reject 500+
-        timeout: 5000 // 5 second timeout
-      });
-      
-      // Check if file exists and has valid GeoJSON features
-      if (response.status === 200 && response.data && response.data.features) {
-        return d; // File exists and has data, return this date
+    const maxLookback = 21;
+    const start = new Date(initDate.getTime());
+
+    const exists = async (filePath: string): Promise<boolean> => {
+      try {
+        const head = await axios.head(filePath, {
+          validateStatus: () => true,
+          timeout: 1500,
+        });
+        if (head.status === 200) return true;
+        if (head.status === 404) return false;
+      } catch {
+        /* fall through */
       }
-      
-      // File doesn't exist or is empty, try previous day
-      d.setUTCDate(d.getUTCDate() - 1);
-      return nearestDate(d, file_selected);
-    } catch (err: any) {
-      // Handle 404 - file doesn't exist, try previous day
-      if (err.response?.status === 404) {
-        d.setUTCDate(d.getUTCDate() - 1);
-        return nearestDate(d, file_selected);
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 1500);
+        const res = await fetch(filePath, {
+          method: "GET",
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        clearTimeout(timer);
+        const ok = res.status === 200;
+        controller.abort();
+        return ok;
+      } catch {
+        return false;
       }
-      // Handle CORS errors (expected in development, won't occur in production on same domain)
-      if (err.code === 'ERR_NETWORK' || err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
-        // In development, CORS will block - try previous day
-        // In production (same domain), CORS won't be an issue
-        // Use console.debug instead of console.warn to reduce console noise
-        console.debug("CORS error in dev (expected - will work in production on same domain)");
-        d.setUTCDate(d.getUTCDate() - 1);
-        return nearestDate(d, file_selected);
+    };
+
+    for (let i = 0; i < maxLookback; i++) {
+      const date = addUtcDays(start, -i);
+      if (await exists(`${file_selected}${formatYmdUTC(date)}_forecast.geojson`)) {
+        return date;
       }
-      // Handle timeout errors
-      if (err.code === 'ECONNABORTED') {
-        d.setUTCDate(d.getUTCDate() - 1);
-        return nearestDate(d, file_selected);
-      }
-      // Other errors - return current date as fallback
-      console.warn("nearestDate error, using current date:", err);
-      return d;
     }
+
+    console.warn("nearestDate: no file found in lookback window, using start date");
+    return start;
   }
 
   // --- Find the nearest forecast time slot ---
@@ -714,9 +710,18 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
                   value={apiDate ? dayjs(apiDate) : null}
                   onChange={(date: Dayjs | null) => {
                     if (date) {
-                      setApiDate(date.toISOString());
+                      // Stable UTC noon so calendar day matches Model Init / file name
+                      const iso = utcNoonIsoFromParts(
+                        date.year(),
+                        date.month(),
+                        date.date()
+                      );
+                      setApiDate(iso);
                       if (!enabledMarkers["OpenAQ-Measurement"]) {
                         setInnerDate(0);
+                        // Instantly sync Forecast Date labels to D / D+1 / D+2
+                        const init = new Date(iso);
+                        setSelectArr(buildForecastDateOptions(init));
                       }
                     }
                   }}
@@ -825,6 +830,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
           setSelectArr={setSelectArr}
           setFromInit={setInnerDate}
           apiDate={apiDate}
+          setApiDate={setApiDate}
           exInit={(d: Date) => setFromInit(d.getTime())}
           setChartData={setChartData}
           setClickedSite={setClickedSite}
