@@ -95,11 +95,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
     "AERONET": false,
     "Open AQ": false,
     "African AQE": false,
-    "Africa Layers": false,
     "OpenAQ-Measurement": false,
   });
 
-  const chipNames = ["DoS Missions", "AERONET", "Open AQ", "African AQE", "Africa Layers", "OpenAQ-Measurement"];
+  const chipNames = ["DoS Missions", "AERONET", "Open AQ", "African AQE", "OpenAQ-Measurement"];
 
   // External layers (NASA imagery + labels)
   const nonbaseMaps = [
@@ -333,7 +332,6 @@ const SidePanel: React.FC<SidePanelProps> = ({ setExType }) => {
       "AERONET": selectedGroup.includes("AERONET"),
       "Open AQ": selectedGroup.includes("Open AQ"),
       "African AQE": selectedGroup.includes("African AQE"),
-      "Africa Layers": selectedGroup.includes("Africa Layers"),
       "OpenAQ-Measurement": selectedGroup.includes("OpenAQ-Measurement"),
     };
 
