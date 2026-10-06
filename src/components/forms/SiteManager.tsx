@@ -20,7 +20,6 @@ const FILE_URLS: { [key: string]: string } = {
   AERONET: GEOJSON_ARNT,
   "Open AQ": GEOJSON_AQ,
   "African AQE": GEOJSON_AAQE,
-  "Africa Layers": GEOJSON_AFRICA,
 };
 
 // Props expected by SiteManager
@@ -38,7 +37,6 @@ interface SiteManagerProps {
     "AERONET": boolean;
     "Open AQ": boolean;
     "African AQE": boolean;
-    "Africa Layers": boolean; 
     "OpenAQ-Measurement": boolean;
   };
   zoom: number;
@@ -824,7 +822,6 @@ const SiteManager: React.FC<SiteManagerProps> = ({
     "aeronet": "AERONET",
     "open aq": "Open AQ",
     "african aqe": "African AQE",
-    "africa layers": "Africa Layers", 
     "openaq-measurement": "OpenAQ-Measurement",
   };
   
