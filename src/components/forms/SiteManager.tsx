@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useMapContext } from "../MapContext";
 import L from "leaflet";
 import "leaflet-svg-shape-markers";
-import { GEOJSON_ARNT, GEOJSON_AQ, GEOJSON_DEF, GEOJSON_AAQE, GEOJSON_AFRICA } from "../../config";
+import { GEOJSON_ARNT, GEOJSON_AQ, GEOJSON_DEF, GEOJSON_AAQE } from "../../config";
 import axios from "axios";
 import { setTextColor, setColor } from "../Utils";
 import {
